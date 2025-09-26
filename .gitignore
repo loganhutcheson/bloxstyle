@@ -1,0 +1,25 @@
+# Node
+node_modules/
+web/node_modules/
+web/.next/
+web/out/
+web/.vercel/
+
+# Python
+__pycache__/
+*.pyc
+
+# OS
+.DS_Store
+
+# Large/local artifacts
+generated/
+lora_dataset/
+shirt_lora_output/
+shirt_set_v1/
+shirt_set.tar
+
+# Env files
+.env
+.env.local
+
