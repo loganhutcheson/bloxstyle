@@ -14,8 +14,11 @@ __pycache__/
 
 # Large/local artifacts
 generated/
-datasets/
-weights/
+lora_dataset/
+shirt_lora_output/
+shirt_set_v1/
+shirt_set_v2/
+shirt_set.tar
 
 # Env files
 .env
