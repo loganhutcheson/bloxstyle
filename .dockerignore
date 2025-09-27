@@ -1,0 +1,21 @@
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+.env
+.env.*
+.git
+.gitignore
+.DS_Store
+
+# Node/Next app not needed for this image
+web/
+node_modules/
+
+# Large datasets and outputs
+lora_dataset/
+datasets/
+weights/
+shirt_set.tar
+generated/

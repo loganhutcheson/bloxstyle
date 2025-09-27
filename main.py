@@ -10,7 +10,26 @@ from subprocess import Popen, PIPE
 app = FastAPI()
 security = HTTPBearer()
 
-JWT_SECRET = "super-secret-key"  # swap out later
+JWT_SECRET = os.getenv("JWT_SECRET", "super-secret-key")
+PORT = int(os.getenv("PORT", "8090"))
+
+# Inference paths (override via env when running in Docker)
+LORA_PATH = os.getenv(
+	"LORA_PATH",
+	"/Users/loganhutcheson/Workspace/projects/roblox_clothes_generator/shirt_lora_output_v2/shirt_generator_final.safetensors",
+)
+OUTLINE_PATH = os.getenv(
+	"OUTLINE_PATH",
+	"/Users/loganhutcheson/Workspace/projects/roblox_clothes_generator/Template-Shirts-Outline.png",
+)
+OUTPUT_DIR = os.getenv(
+	"OUTPUT_DIR",
+	"/Users/loganhutcheson/Workspace/projects/roblox_clothes_generator/generated",
+)
+PROJECT_ROOT = os.getenv(
+	"PROJECT_ROOT",
+	"/Users/loganhutcheson/Workspace/projects/roblox_clothes_generator",
+)
 
 
 def verify_token(credentials: HTTPAuthorizationCredentials = Depends(security)):
@@ -25,29 +44,29 @@ class GenerateRequest(BaseModel):
 def run_inference(prompt: str) -> str:
 	"""Run the existing inference_shirt_lora.py and return the saved image path."""
 	python_exe = sys.executable or "python3"
-	script_path = "/Users/loganhutcheson/Workspace/projects/roblox_clothes_generator/inference_shirt_lora.py"
+	script_path = os.path.join(PROJECT_ROOT, "inference_shirt_lora.py")
 	args = [
 		python_exe,
 		script_path,
 		"--lora_path",
-		"/Users/loganhutcheson/Workspace/projects/roblox_clothes_generator/shirt_lora_output/shirt_generator_final.safetensors",
+		LORA_PATH,
 		"--outline",
-		"/Users/loganhutcheson/Workspace/projects/roblox_clothes_generator/Template-Shirts-Outline.png",
+		OUTLINE_PATH,
 		"--output",
-		"/Users/loganhutcheson/Workspace/projects/roblox_clothes_generator/generated",
+		OUTPUT_DIR,
 		"--width",
 		"585",
 		"--height",
 		"559",
 		"--steps",
-		"30",
+		"20",
 		"--guidance",
-		"7.0",
+		"14.0",
 		"--cn_scale",
 		"1.0",
 		"--disable_safety",
 		"--lora_scale",
-		"0.75",
+		"1.2",
 		"--mask_from_black",
 		"--dilate_mask",
 		"6",
@@ -55,7 +74,7 @@ def run_inference(prompt: str) -> str:
 		prompt,
 	]
 
-	proc = Popen(args, cwd="/Users/loganhutcheson/Workspace/projects/roblox_clothes_generator", stdout=PIPE, stderr=PIPE, text=True)
+	proc = Popen(args, cwd=PROJECT_ROOT, stdout=PIPE, stderr=PIPE, text=True)
 	stdout, stderr = proc.communicate()
 	if proc.returncode != 0:
 		raise RuntimeError(f"Inference failed (code {proc.returncode}): {stderr or stdout}")
@@ -84,4 +103,4 @@ async def generate(body: GenerateRequest, creds: HTTPAuthorizationCredentials = 
 
 
 if __name__ == "__main__":
-	uvicorn.run(app, host="0.0.0.0", port=8090)
+	uvicorn.run(app, host="0.0.0.0", port=PORT)
