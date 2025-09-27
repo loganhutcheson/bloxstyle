@@ -19,6 +19,8 @@ shirt_lora_output/
 shirt_set_v1/
 shirt_set_v2/
 shirt_set.tar
+weights/
+datasets/
 
 # Env files
 .env
