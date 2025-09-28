@@ -42,6 +42,7 @@ def load_custom_lora_weights_into_unet(unet, lora_path, lora_scale=0.75, default
         with open(config_path, 'r') as f:
             config = json.load(f)
         print(f"Loaded LoRA config: {config}")
+    unet_dtype = next(unet.parameters()).dtype
     for name, module in unet.named_modules():
         if "attn2" in name:
             device = next(unet.parameters()).device
@@ -55,12 +56,17 @@ def load_custom_lora_weights_into_unet(unet, lora_path, lora_scale=0.75, default
                     lora_up = torch.nn.Linear(rank, linear_layer.out_features, bias=False)
                     lora_down.weight.data = lora_state_dict[down_key]
                     lora_up.weight.data = lora_state_dict[up_key]
-                    lora_down.to(device); lora_up.to(device)
+                    # Match device and dtype of UNet
+                    lora_down.to(device=device, dtype=unet_dtype)
+                    lora_up.to(device=device, dtype=unet_dtype)
                     base_scale = alpha / rank
                     scale = lora_scale * base_scale
                     original_forward = linear_layer.forward
                     def lora_forward(x, original=original_forward, down=lora_down, up=lora_up, s=scale):
-                        return original(x) + s * up(down(x))
+                        x_dtype = x.dtype
+                        y = up(down(x.to(unet_dtype)))
+                        y = y.to(x_dtype)
+                        return original(x) + s * y
                     linear_layer.forward = lora_forward
                     return True
                 return False

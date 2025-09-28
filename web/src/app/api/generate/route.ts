@@ -2,6 +2,8 @@ import fs from "node:fs/promises";
 import { spawn } from "node:child_process";
 
 export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
+export const maxDuration = 60;
 
 type GenerateBody = { prompt?: string };
 
@@ -19,7 +21,8 @@ export async function POST(request: Request) {
 		const apiBase = process.env.GENERATOR_API_URL || "http://localhost:8090";
 		const jwt = process.env.GENERATOR_JWT || "super-secret-key";
 
-		const upstream = await fetch(`${apiBase.replace(/\/$/, "")}/generate`, {
+		// Call upstream exactly as provided (Modal endpoint is at root '/')
+		const upstream = await fetch(apiBase, {
 			method: "POST",
 			headers: {
 				"Content-Type": "application/json",
@@ -31,8 +34,14 @@ export async function POST(request: Request) {
 		if (!upstream.ok) {
 			let errorMsg = `Upstream error ${upstream.status}`;
 			try {
-				const maybe = await upstream.json();
-				if (maybe?.message) errorMsg = String(maybe.message);
+				const ct = upstream.headers.get("content-type") || "";
+				if (ct.includes("application/json")) {
+					const maybe = await upstream.json();
+					if (maybe?.message) errorMsg = String(maybe.message);
+				} else {
+					const text = await upstream.text();
+					if (text) errorMsg = text;
+				}
 			} catch {}
 			return new Response(JSON.stringify({ message: errorMsg }), {
 				status: 502,
