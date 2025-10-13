@@ -2,10 +2,24 @@ This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-
 
 ## Getting Started
 
-First, run the development server:
+Create a `.env.local` with the following variables:
+
+```
+AUTH_SECRET=change-me-to-a-strong-secret
+AUTH_TRUST_HOST=true
+NEXTAUTH_URL=http://localhost:3000
+AUTH_GOOGLE_ID=your-google-client-id
+AUTH_GOOGLE_SECRET=your-google-client-secret
+
+# Existing app variables
+GENERATOR_API_URL=http://localhost:8090
+GENERATOR_JWT=super-secret-key
+```
+
+Then install deps and run the development server:
 
 ```bash
-npm run dev
+npm install && npm run dev
 # or
 yarn dev
 # or

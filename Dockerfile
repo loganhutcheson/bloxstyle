@@ -33,3 +33,9 @@ EXPOSE ${PORT}
 
 # Start the FastAPI app
 CMD ["python", "main.py"]
+
+
+
+
+
+

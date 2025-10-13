@@ -101,7 +101,7 @@ class ShirtGenerator:
 		self.dtype = dtype
 
 		# Model setup
-		controlnet_id = "lllyasviel/control_v11p_sd15_scribble"
+		controlnet_id = "lllyasviel/control_v11p_sd15_lineart"
 		base_model_id = "runwayml/stable-diffusion-inpainting"
 		self.controlnet = self.ControlNetModel.from_pretrained(controlnet_id, torch_dtype=dtype)
 		self.pipe = self.StableDiffusionControlNetInpaintPipeline.from_pretrained(
@@ -131,6 +131,26 @@ class ShirtGenerator:
 		mask_img = self.create_inpaint_mask_from_black_regions(outline_img, width, height, dilate=6)
 		template_img = Image.new("RGB", (width, height), color=(255, 255, 255))
 
+		# Pad to multiples of 8 for model, then crop back to requested size
+		def _round_up_to_multiple_of_8(n: int) -> int:
+			return (n + 7) // 8 * 8
+
+		pad_w, pad_h = _round_up_to_multiple_of_8(width), _round_up_to_multiple_of_8(height)
+		if (pad_w, pad_h) != (width, height):
+			# Control image: pad with white background
+			control_canvas = Image.new("RGB", (pad_w, pad_h), (255, 255, 255))
+			control_canvas.paste(control_img, (0, 0))
+			control_img = control_canvas
+			# Mask: convert to L; pad with black (0) to keep area outside original untouched
+			mask_rgb = mask_img.convert("L")
+			mask_canvas = Image.new("L", (pad_w, pad_h), 0)
+			mask_canvas.paste(mask_rgb, (0, 0))
+			mask_img = mask_canvas
+			# Template image: pad with white
+			template_canvas = Image.new("RGB", (pad_w, pad_h), (255, 255, 255))
+			template_canvas.paste(template_img, (0, 0))
+			template_img = template_canvas
+
 		# Run
 		result = self.pipe(
 			prompt=prompt,
@@ -140,10 +160,13 @@ class ShirtGenerator:
 			control_image=control_img,
 			num_inference_steps=30,
 			guidance_scale=7.0,
-			controlnet_conditioning_scale=1.0,
+			controlnet_conditioning_scale=1.5,
 			num_images_per_prompt=1,
 		)
 		img = result.images[0]
+		# Crop back to exact requested size
+		if (pad_w, pad_h) != (width, height):
+			img = img.crop((0, 0, width, height))
 		buf = io.BytesIO()
 		img.save(buf, format="PNG")
 		return buf.getvalue()

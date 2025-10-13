@@ -1,5 +1,6 @@
-import fs from "node:fs/promises";
-import { spawn } from "node:child_process";
+// Removed unused imports
+import { getServerSession } from "next-auth";
+import { authOptions } from "@/lib/auth";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -9,6 +10,14 @@ type GenerateBody = { prompt?: string };
 
 export async function POST(request: Request) {
 	try {
+    const session = await getServerSession(authOptions);
+    if (!session?.user) {
+      return new Response(JSON.stringify({ message: "Unauthorized" }), {
+        status: 401,
+        headers: { "Content-Type": "application/json" },
+      });
+    }
+
 		const body = (await request.json()) as GenerateBody;
 		const prompt = (body?.prompt || "").trim();
 		if (!prompt) {

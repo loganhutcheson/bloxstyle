@@ -80,6 +80,58 @@ def load_custom_lora_weights_into_unet(unet, lora_path, lora_scale=0.75, default
                     pass
     print("LoRA weights loaded into UNet.")
 
+def load_custom_lora_weights_into_controlnet(controlnet, lora_path, lora_scale=0.75, default_alpha=32):
+    print(f"Loading ControlNet LoRA weights from {lora_path}...")
+    lora_state_dict = torch.load(lora_path, map_location="cpu")
+    config = None
+    config_path = lora_path.replace('.safetensors', '_config.json')
+    if os.path.exists(config_path):
+        with open(config_path, 'r') as f:
+            config = json.load(f)
+        print(f"Loaded ControlNet LoRA config: {config}")
+    cn_dtype = next(controlnet.parameters()).dtype
+    device = next(controlnet.parameters()).device
+
+    alpha = config.get('lora_alpha', default_alpha) if isinstance(config, dict) else default_alpha
+
+    def apply_lora(linear_layer, key_prefix):
+        down_key = f"{key_prefix}.lora_down.weight"
+        up_key = f"{key_prefix}.lora_up.weight"
+        if down_key in lora_state_dict and up_key in lora_state_dict:
+            rank = lora_state_dict[down_key].shape[0]
+            lora_down = torch.nn.Linear(linear_layer.in_features, rank, bias=False)
+            lora_up = torch.nn.Linear(rank, linear_layer.out_features, bias=False)
+            lora_down.weight.data = lora_state_dict[down_key]
+            lora_up.weight.data = lora_state_dict[up_key]
+            lora_down.to(device=device, dtype=cn_dtype)
+            lora_up.to(device=device, dtype=cn_dtype)
+            base_scale = alpha / rank
+            scale = lora_scale * base_scale
+            original_forward = linear_layer.forward
+            def lora_forward(x, original=original_forward, down=lora_down, up=lora_up, s=scale):
+                x_dtype = x.dtype
+                y = up(down(x.to(cn_dtype)))
+                y = y.to(x_dtype)
+                return original(x) + s * y
+            linear_layer.forward = lora_forward
+            return True
+        return False
+
+    attached = 0
+    for name, module in controlnet.named_modules():
+        if "attn2" in name:
+            for proj in ["to_q", "to_k", "to_v"]:
+                if hasattr(module, proj):
+                    if apply_lora(getattr(module, proj), f"{name}.{proj}"):
+                        attached += 1
+            if hasattr(module, "to_out"):
+                try:
+                    if apply_lora(module.to_out[0], f"{name}.to_out.0"):
+                        attached += 1
+                except Exception:
+                    pass
+    print(f"LoRA weights loaded into ControlNet. Attached: {attached}")
+
 def pick_device_and_dtype():
     if torch.cuda.is_available():
         return ("cuda", torch.float16)
@@ -89,7 +141,7 @@ def pick_device_and_dtype():
 
 def main():
     parser = argparse.ArgumentParser(description="Inference for Shirt LoRA with ControlNet Inpainting")
-    parser.add_argument("--lora_path", type=str, required=True, help="Path to LoRA weights (.safetensors)")
+    parser.add_argument("--lora_path", type=str, default=None, help="Optional UNet LoRA weights (.safetensors)")
     parser.add_argument("--prompt", type=str, required=True)
     parser.add_argument("--negative_prompt", type=str, default=None)
     # Defaults now resolve from the current working directory
@@ -107,24 +159,34 @@ def main():
     parser.add_argument("--dilate_mask", type=int, default=2)
     parser.add_argument("--disable_safety", action="store_true")
     parser.add_argument("--lora_scale", type=float, default=0.75)
+    parser.add_argument("--controlnet_lora_path", type=str, default=None, help="Optional path to ControlNet LoRA (.safetensors)")
+    parser.add_argument("--controlnet_id", type=str, default="lllyasviel/control_v11p_sd15_lineart", help="ControlNet model id")
+    parser.add_argument("--save_debug", action="store_true", help="Save control and mask images for debugging")
+    parser.add_argument("--paint_all", action="store_true", help="Paint entire canvas (use full-white mask) to rule out mask issues")
     args = parser.parse_args()
 
     # Normalize incoming paths relative to current working directory
-    args.lora_path = os.path.abspath(args.lora_path)
+    if args.lora_path and not os.path.isabs(args.lora_path):
+        args.lora_path = os.path.abspath(args.lora_path)
     if args.outline and not os.path.isabs(args.outline):
         args.outline = os.path.abspath(args.outline)
     if args.template and not os.path.isabs(args.template):
         args.template = os.path.abspath(args.template)
     if args.output and not os.path.isabs(args.output):
         args.output = os.path.abspath(args.output)
+    if args.controlnet_lora_path and not os.path.isabs(args.controlnet_lora_path):
+        args.controlnet_lora_path = os.path.abspath(args.controlnet_lora_path)
 
     os.makedirs(args.output, exist_ok=True)
     outline_img = load_image(args.outline)
     control_img = create_control_image_from_outline(outline_img, args.width, args.height)
-    if args.mask_from_black:
-        mask_img = create_inpaint_mask_from_black_regions(outline_img, args.width, args.height, dilate=args.dilate_mask)
+    if args.paint_all:
+        mask_img = Image.new("L", (args.width, args.height), 255)
     else:
-        mask_img = create_inpaint_mask_from_outline(outline_img, args.width, args.height, dilate=args.dilate_mask)
+        if args.mask_from_black:
+            mask_img = create_inpaint_mask_from_black_regions(outline_img, args.width, args.height, dilate=args.dilate_mask)
+        else:
+            mask_img = create_inpaint_mask_from_outline(outline_img, args.width, args.height, dilate=args.dilate_mask)
     if args.template and os.path.exists(args.template):
         template_img = load_image(args.template)
         template_img = ensure_size(template_img, args.width, args.height)
@@ -143,8 +205,16 @@ def main():
         mask_img = mask_canvas
         template_img = _pad_to_size(template_img, pad_w, pad_h, fill=(255, 255, 255))
 
+    # Optional debug saves
+    if args.save_debug:
+        try:
+            control_img.save(os.path.join(args.output, "debug_control.png"))
+            mask_img.save(os.path.join(args.output, "debug_mask.png"))
+        except Exception:
+            pass
+
     device, dtype = pick_device_and_dtype()
-    controlnet_id = "lllyasviel/control_v11p_sd15_scribble"
+    controlnet_id = args.controlnet_id
     base_model_id = "runwayml/stable-diffusion-inpainting"
     controlnet = ControlNetModel.from_pretrained(controlnet_id, torch_dtype=dtype)
     pipe = StableDiffusionControlNetInpaintPipeline.from_pretrained(
@@ -159,8 +229,11 @@ def main():
         pass
     pipe.scheduler = DPMSolverMultistepScheduler.from_config(pipe.scheduler.config)
 
-    # Inject LoRA
-    load_custom_lora_weights_into_unet(pipe.unet, args.lora_path, lora_scale=args.lora_scale)
+    # Inject UNet LoRA (optional)
+    if args.lora_path and os.path.exists(args.lora_path):
+        load_custom_lora_weights_into_unet(pipe.unet, args.lora_path, lora_scale=args.lora_scale)
+    if args.controlnet_lora_path and os.path.exists(args.controlnet_lora_path):
+        load_custom_lora_weights_into_controlnet(pipe.controlnet, args.controlnet_lora_path, lora_scale=1.0)
 
     generator = None
     if args.seed is not None:
