@@ -12,7 +12,7 @@ export default function Home() {
   const [isColdStarting, setIsColdStarting] = useState(false);
   const [dotCount, setDotCount] = useState(1);
   const coldStartTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const [credits, setCredits] = useState<number>(0);
+  const [credits, setCredits] = useState<number | null>(null);
 
   useEffect(() => {
     let isMounted = true;
@@ -60,8 +60,8 @@ export default function Home() {
 
   async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (credits <= 0) {
-      setErrorMessage("You are out of credits.");
+    if (typeof credits === "number" && credits < 100) {
+      setErrorMessage("You need at least 100 credits.");
       return;
     }
     setIsSubmitting(true);
@@ -137,17 +137,23 @@ export default function Home() {
             required
           />
           <button
-            type="submit"
-            disabled={isSubmitting || credits <= 0}
-            className="rounded-md bg-black text-white px-4 py-2 disabled:opacity-50 dark:bg-white dark:text-black"
-          >
-            {isSubmitting ? "Generating..." : credits <= 0 ? "Out of credits" : "Generate"}
-          </button>
+          type="submit"
+          disabled={isSubmitting || (typeof credits === "number" && credits < 100)}
+          className="rounded-md bg-black text-white px-4 py-2 disabled:opacity-50 dark:bg-white dark:text-black"
+        >
+          {isSubmitting ? "Generating..." : (typeof credits === "number" && credits < 100) ? "Need 100 credits" : "Generate"}
+        </button>
         </form>
 
-        <div className="mt-2 text-sm text-black/60 dark:text-white/60">
-          Credits remaining: {credits}
-        </div>
+        {typeof credits === "number" ? (
+          <div className="mt-3 flex justify-end">
+            <div className="text-sm text-black/60 dark:text-white/60 flex items-center">
+              <span className="text-base italic font-semibold text-transparent bg-clip-text bg-gradient-to-br from-yellow-300 via-amber-400 to-orange-500 drop-shadow">{credits}</span>
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img src="/coin.svg" alt="credits" className="ml-1 inline-block h-4 w-4" />
+            </div>
+          </div>
+        ) : null}
 
         {errorMessage ? (
           <p className="text-red-500 mt-4">{errorMessage}</p>

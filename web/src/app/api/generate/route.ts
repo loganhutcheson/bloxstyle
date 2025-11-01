@@ -39,10 +39,11 @@ export async function POST(request: Request) {
     const creditRow = await prisma.credit.upsert({
       where: { email },
       update: {},
-      create: { email, credits: 3 },
+      create: { email, credits: 1000 },
     });
-    if (creditRow.credits <= 0) {
-      return new Response(JSON.stringify({ message: "Out of credits" }), {
+    const costPerGeneration = 100;
+    if (creditRow.credits < costPerGeneration) {
+      return new Response(JSON.stringify({ message: "Insufficient credits" }), {
         status: 402,
         headers: { "Content-Type": "application/json" },
       });
@@ -86,7 +87,7 @@ export async function POST(request: Request) {
     try {
       await prisma.credit.update({
         where: { email },
-        data: { credits: { decrement: 1 } },
+        data: { credits: { decrement: costPerGeneration } },
       });
     } catch {}
 		return new Response(arrayBuffer, {

@@ -16,15 +16,15 @@
     "prisma:deploy": "prisma migrate deploy"
   },
   "dependencies": {
+    "@prisma/client": "^5.20.0",
+    "@prisma/extension-accelerate": "^1.2.1",
     "@react-three/drei": "^9.114.3",
     "@react-three/fiber": "^8.15.18",
     "next": "15.5.4",
     "next-auth": "^4.24.11",
     "react": "19.1.0",
     "react-dom": "19.1.0",
-    "three": "^0.165.0",
-    "@prisma/client": "^5.20.0",
-    "@prisma/extension-accelerate": "^1.2.1"
+    "three": "^0.165.0"
   },
   "devDependencies": {
     "@eslint/eslintrc": "^3",
@@ -34,8 +34,8 @@
     "@types/react-dom": "^19",
     "eslint": "^9",
     "eslint-config-next": "15.5.4",
+    "prisma": "^5.22.0",
     "tailwindcss": "^4",
-    "typescript": "^5",
-    "prisma": "^5.20.0"
+    "typescript": "^5"
   }
 }

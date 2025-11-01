@@ -14,7 +14,7 @@ export async function GET() {
   const row = await prisma.credit.upsert({
     where: { email },
     update: {},
-    create: { email, credits: 3 },
+    create: { email, credits: 1000 },
   });
   return new Response(JSON.stringify({ credits: row.credits }), {
     status: 200,
