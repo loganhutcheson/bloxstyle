@@ -12,6 +12,7 @@ export default function Home() {
   const [isColdStarting, setIsColdStarting] = useState(false);
   const [dotCount, setDotCount] = useState(1);
   const coldStartTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [credits, setCredits] = useState<number>(0);
 
   useEffect(() => {
     let isMounted = true;
@@ -32,6 +33,22 @@ export default function Home() {
     };
   }, []);
 
+  // Load credits from API
+  useEffect(() => {
+    let isMounted = true;
+    (async () => {
+      try {
+        const res = await fetch("/api/credits", { cache: "no-store" });
+        if (!res.ok) return;
+        const data = await res.json();
+        if (isMounted && typeof data?.credits === "number") setCredits(data.credits);
+      } catch {}
+    })();
+    return () => {
+      isMounted = false;
+    };
+  }, []);
+
   // Animate dots while in cold start state
   useEffect(() => {
     if (!isColdStarting) return;
@@ -43,11 +60,17 @@ export default function Home() {
 
   async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    if (credits <= 0) {
+      setErrorMessage("You are out of credits.");
+      return;
+    }
     setIsSubmitting(true);
     setErrorMessage(null);
     setGeneratedImageUrl(null);
     setIsColdStarting(false);
     setDotCount(1);
+
+    // Credits will be decremented server-side only on success
 
     // If the request hasn't returned within the threshold, assume a cold start
     if (coldStartTimeoutRef.current) {
@@ -73,9 +96,21 @@ export default function Home() {
       const blob = await response.blob();
       const objectUrl = URL.createObjectURL(blob);
       setGeneratedImageUrl(objectUrl);
+      // Refresh credits after a successful generation
+      try {
+        const res = await fetch("/api/credits", { cache: "no-store" });
+        const data = await res.json().catch(() => ({}));
+        if (typeof data?.credits === "number") setCredits(data.credits);
+      } catch {}
     } catch (error) {
       const message = error instanceof Error ? error.message : "Unexpected error";
       setErrorMessage(message);
+      // Sync credits on error, in case server enforced limits
+      try {
+        const res = await fetch("/api/credits", { cache: "no-store" });
+        const data = await res.json().catch(() => ({}));
+        if (typeof data?.credits === "number") setCredits(data.credits);
+      } catch {}
     } finally {
       if (coldStartTimeoutRef.current) {
         clearTimeout(coldStartTimeoutRef.current);
@@ -103,12 +138,16 @@ export default function Home() {
           />
           <button
             type="submit"
-            disabled={isSubmitting}
+            disabled={isSubmitting || credits <= 0}
             className="rounded-md bg-black text-white px-4 py-2 disabled:opacity-50 dark:bg-white dark:text-black"
           >
-            {isSubmitting ? "Generating..." : "Generate"}
+            {isSubmitting ? "Generating..." : credits <= 0 ? "Out of credits" : "Generate"}
           </button>
         </form>
+
+        <div className="mt-2 text-sm text-black/60 dark:text-white/60">
+          Credits remaining: {credits}
+        </div>
 
         {errorMessage ? (
           <p className="text-red-500 mt-4">{errorMessage}</p>

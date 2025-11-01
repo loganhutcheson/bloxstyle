@@ -1,5 +1,6 @@
 import type { NextAuthOptions } from "next-auth";
 import GoogleProvider from "next-auth/providers/google";
+import { prisma } from "@/lib/prisma";
 
 export const authOptions: NextAuthOptions = {
   providers: [
@@ -11,6 +12,37 @@ export const authOptions: NextAuthOptions = {
   session: { strategy: "jwt" },
   pages: { signIn: "/signin" },
   secret: process.env.AUTH_SECRET,
+  events: {
+    async signIn({ user }) {
+      const email = user?.email?.toLowerCase();
+      if (!email) return;
+      try {
+        await prisma.credit.upsert({
+          where: { email },
+          update: {},
+          create: { email, credits: 3 },
+        });
+      } catch {
+        // ignore
+      }
+    },
+  },
+  callbacks: {
+    async session({ session }) {
+      try {
+        const email = session.user?.email?.toLowerCase();
+        if (!email) return session;
+        const row = await prisma.credit.findUnique({ where: { email } });
+        if (row) {
+          // @ts-expect-error augment at runtime
+          session.user.credits = row.credits;
+        }
+      } catch {
+        // ignore
+      }
+      return session;
+    },
+  },
 };
 
 

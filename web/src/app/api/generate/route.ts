@@ -1,6 +1,7 @@
 // Removed unused imports
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
+import { prisma } from "@/lib/prisma";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -17,6 +18,7 @@ export async function POST(request: Request) {
         headers: { "Content-Type": "application/json" },
       });
     }
+    const email = (session.user.email || "").toLowerCase();
 
 		const body = (await request.json()) as GenerateBody;
 		const prompt = (body?.prompt || "").trim();
@@ -26,6 +28,25 @@ export async function POST(request: Request) {
 				headers: { "Content-Type": "application/json" },
 			});
 		}
+
+    // Ensure user has credits
+    if (!email) {
+      return new Response(JSON.stringify({ message: "Missing user email" }), {
+        status: 400,
+        headers: { "Content-Type": "application/json" },
+      });
+    }
+    const creditRow = await prisma.credit.upsert({
+      where: { email },
+      update: {},
+      create: { email, credits: 3 },
+    });
+    if (creditRow.credits <= 0) {
+      return new Response(JSON.stringify({ message: "Out of credits" }), {
+        status: 402,
+        headers: { "Content-Type": "application/json" },
+      });
+    }
 
 		const apiBase = process.env.GENERATOR_API_URL || "http://localhost:8090";
 		const jwt = process.env.GENERATOR_JWT || "super-secret-key";
@@ -58,7 +79,16 @@ export async function POST(request: Request) {
 			});
 		}
 
+
 		const arrayBuffer = await upstream.arrayBuffer();
+
+    // Decrement a credit only on successful upstream response
+    try {
+      await prisma.credit.update({
+        where: { email },
+        data: { credits: { decrement: 1 } },
+      });
+    } catch {}
 		return new Response(arrayBuffer, {
 			status: 200,
 			headers: {

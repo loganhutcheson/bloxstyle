@@ -7,9 +7,13 @@
   },
   "scripts": {
     "dev": "next dev",
-    "build": "next build",
+    "build": "prisma migrate deploy && next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "postinstall": "prisma generate",
+    "prisma:generate": "prisma generate",
+    "prisma:migrate": "prisma migrate dev",
+    "prisma:deploy": "prisma migrate deploy"
   },
   "dependencies": {
     "@react-three/drei": "^9.114.3",
@@ -18,7 +22,9 @@
     "next-auth": "^4.24.11",
     "react": "19.1.0",
     "react-dom": "19.1.0",
-    "three": "^0.165.0"
+    "three": "^0.165.0",
+    "@prisma/client": "^5.20.0",
+    "@prisma/extension-accelerate": "^1.2.1"
   },
   "devDependencies": {
     "@eslint/eslintrc": "^3",
@@ -29,6 +35,7 @@
     "eslint": "^9",
     "eslint-config-next": "15.5.4",
     "tailwindcss": "^4",
-    "typescript": "^5"
+    "typescript": "^5",
+    "prisma": "^5.20.0"
   }
 }
