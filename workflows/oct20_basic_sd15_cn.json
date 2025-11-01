@@ -1,0 +1,279 @@
+{
+  "id": "8273c789-f05c-4b47-8298-e597df737479",
+  "revision": 0,
+  "last_node_id": 39,
+  "last_link_id": 93,
+  "nodes": [
+    {
+      "id": 13,
+      "type": "SetLatentNoiseMask",
+      "pos": [0.00883552897721529, -141.08120727539062],
+      "size": [240, 80],
+      "flags": {},
+      "order": 11,
+      "mode": 0,
+      "inputs": [
+        {"name": "samples", "type": "LATENT", "link": 88},
+        {"name": "mask", "type": "MASK", "link": 91}
+      ],
+      "outputs": [{"name": "LATENT", "type": "LATENT", "links": [76]}],
+      "properties": {"Node name for S&R": "SetLatentNoiseMask"},
+      "widgets_values": []
+    },
+    {
+      "id": 30,
+      "type": "ResizeAndPadImage",
+      "pos": [-702.5072021484375, -559.1316528320312],
+      "size": [270, 130],
+      "flags": {},
+      "order": 4,
+      "mode": 0,
+      "inputs": [{"name": "image", "type": "IMAGE", "link": 78}],
+      "outputs": [{"name": "IMAGE", "type": "IMAGE", "links": [79, 80]}],
+      "properties": {"Node name for S&R": "ResizeAndPadImage"},
+      "widgets_values": [592, 560, "white", "area"]
+    },
+    {
+      "id": 5,
+      "type": "LoadImage",
+      "pos": [-1214.642822265625, -559.6790771484375],
+      "size": [274, 314],
+      "flags": {},
+      "order": 0,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [{"name": "IMAGE", "type": "IMAGE", "links": [78]}, {"name": "MASK", "type": "MASK"}],
+      "properties": {"Node name for S&R": "LoadImage"},
+      "widgets_values": ["Template-Shirts-Outline.png", "image"]
+    },
+    {
+      "id": 33,
+      "type": "EmptyLatentImage",
+      "pos": [-1030.8499755859375, 654.7923583984375],
+      "size": [270, 106],
+      "flags": {},
+      "order": 1,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [{"name": "LATENT", "type": "LATENT", "links": [88]}],
+      "properties": {"Node name for S&R": "EmptyLatentImage"},
+      "widgets_values": [592, 560, 1]
+    },
+    {
+      "id": 1,
+      "type": "CheckpointLoaderSimple",
+      "pos": [-1298.9237060546875, 250.0038604736328],
+      "size": [270, 98],
+      "flags": {},
+      "order": 2,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [
+        {"name": "MODEL", "type": "MODEL", "links": [61]},
+        {"name": "CLIP", "type": "CLIP", "links": [62]},
+        {"name": "VAE", "type": "VAE", "links": [82, 89]}
+      ],
+      "properties": {"Node name for S&R": "CheckpointLoaderSimple"},
+      "widgets_values": ["sd-v1-5-inpainting.ckpt"]
+    },
+    {
+      "id": 29,
+      "type": "ControlNetApplyAdvanced",
+      "pos": [77.6247787475586, 105.79582977294922],
+      "size": [270, 186],
+      "flags": {},
+      "order": 10,
+      "mode": 0,
+      "inputs": [
+        {"name": "positive", "type": "CONDITIONING", "link": 69},
+        {"name": "negative", "type": "CONDITIONING", "link": 86},
+        {"name": "control_net", "type": "CONTROL_NET", "link": 68},
+        {"name": "image", "type": "IMAGE", "link": 80},
+        {"name": "vae", "shape": 7, "type": "VAE", "link": 89}
+      ],
+      "outputs": [
+        {"name": "positive", "type": "CONDITIONING", "links": [71]},
+        {"name": "negative", "type": "CONDITIONING", "links": null}
+      ],
+      "properties": {"Node name for S&R": "ControlNetApplyAdvanced"},
+      "widgets_values": [1, 0, 1]
+    },
+    {
+      "id": 17,
+      "type": "VAEDecode",
+      "pos": [1048.4002685546875, 333.0986633300781],
+      "size": [140, 46],
+      "flags": {},
+      "order": 13,
+      "mode": 0,
+      "inputs": [
+        {"name": "samples", "type": "LATENT", "link": 81},
+        {"name": "vae", "type": "VAE", "link": 82}
+      ],
+      "outputs": [{"name": "IMAGE", "type": "IMAGE", "links": [92]}],
+      "properties": {"Node name for S&R": "VAEDecode"},
+      "widgets_values": []
+    },
+    {
+      "id": 39,
+      "type": "ImageCrop",
+      "pos": [1210, 333],
+      "size": [240, 90],
+      "flags": {},
+      "order": 14,
+      "mode": 0,
+      "inputs": [{"name": "image", "type": "IMAGE", "link": 92}],
+      "outputs": [{"name": "IMAGE", "type": "IMAGE", "links": [93]}],
+      "widgets_values": [0, 0, 585, 559]
+    },
+    {
+      "id": 14,
+      "type": "ControlNetLoader",
+      "pos": [-1010.6314697265625, 14.690258979797363],
+      "size": [260, 90],
+      "flags": {},
+      "order": 3,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [{"name": "CONTROL_NET", "type": "CONTROL_NET", "links": [68]}],
+      "properties": {"Node name for S&R": "ControlNetLoader"},
+      "widgets_values": ["control_v11p_sd15_lineart_fp16.safetensors"]
+    },
+    {
+      "id": 3,
+      "type": "CLIPTextEncode",
+      "pos": [-506.5309753417969, 271.58294677734375],
+      "size": [380, 200],
+      "flags": {},
+      "order": 7,
+      "mode": 0,
+      "inputs": [{"name": "clip", "type": "CLIP", "link": 66}],
+      "outputs": [{"name": "CONDITIONING", "type": "CONDITIONING", "links": [69]}],
+      "properties": {"Node name for S&R": "CLIPTextEncode"},
+      "widgets_values": ["rbx_shirt, roblox clothing template, red shirt, moderate shading"]
+    },
+    {
+      "id": 31,
+      "type": "ImageToMask",
+      "pos": [-16.054353713989258, -559.9312133789062],
+      "size": [270, 58],
+      "flags": {},
+      "order": 6,
+      "mode": 0,
+      "inputs": [{"name": "image", "type": "IMAGE", "link": 79}],
+      "outputs": [{"name": "MASK", "type": "MASK", "links": [90]}],
+      "properties": {"Node name for S&R": "ImageToMask"},
+      "widgets_values": ["red"]
+    },
+    {
+      "id": 19,
+      "type": "SaveImage",
+      "pos": [1460, 324.3],
+      "size": [210, 270],
+      "flags": {},
+      "order": 15,
+      "mode": 0,
+      "inputs": [{"name": "images", "type": "IMAGE", "link": 93}],
+      "outputs": [],
+      "properties": {},
+      "widgets_values": ["generated"]
+    },
+    {
+      "id": 4,
+      "type": "CLIPTextEncode",
+      "pos": [-497.9986572265625, 545.5758666992188],
+      "size": [380, 200],
+      "flags": {},
+      "order": 8,
+      "mode": 0,
+      "inputs": [{"name": "clip", "type": "CLIP", "link": 67}],
+      "outputs": [{"name": "CONDITIONING", "type": "CONDITIONING", "links": [74, 86]}],
+      "properties": {"Node name for S&R": "CLIPTextEncode"},
+      "widgets_values": [""]
+    },
+    {
+      "id": 16,
+      "type": "KSampler",
+      "pos": [571.8118286132812, -245.23101806640625],
+      "size": [270, 262],
+      "flags": {},
+      "order": 12,
+      "mode": 0,
+      "inputs": [
+        {"name": "model", "type": "MODEL", "link": 77},
+        {"name": "positive", "type": "CONDITIONING", "link": 71},
+        {"name": "negative", "type": "CONDITIONING", "link": 74},
+        {"name": "latent_image", "type": "LATENT", "link": 76}
+      ],
+      "outputs": [{"name": "LATENT", "type": "LATENT", "links": [81]}],
+      "properties": {"Node name for S&R": "KSampler"},
+      "widgets_values": [123456789, "fixed", 40, 12, "dpmpp_2m", "karras", 1]
+    },
+    {
+      "id": 2,
+      "type": "LoraLoader",
+      "pos": [-993.4762573242188, 427.8005065917969],
+      "size": [270, 126],
+      "flags": {},
+      "order": 5,
+      "mode": 0,
+      "inputs": [
+        {"name": "model", "type": "MODEL", "link": 61},
+        {"name": "clip", "type": "CLIP", "link": 62}
+      ],
+      "outputs": [
+        {"name": "MODEL", "type": "MODEL", "links": [77]},
+        {"name": "CLIP", "type": "CLIP", "links": [66, 67]}
+      ],
+      "properties": {"Node name for S&R": "LoraLoader"},
+      "widgets_values": ["shirt_generator_final_converted.safetensors", 1, 1]
+    },
+    {
+      "id": 38,
+      "type": "InvertMask",
+      "pos": [509.4280700683594, -557.1543579101562],
+      "size": [140, 26],
+      "flags": {},
+      "order": 9,
+      "mode": 0,
+      "inputs": [{"name": "mask", "type": "MASK", "link": 90}],
+      "outputs": [{"name": "MASK", "type": "MASK", "links": [91]}],
+      "properties": {"Node name for S&R": "InvertMask"},
+      "widgets_values": []
+    }
+  ],
+  "links": [
+    [61, 1, 0, 2, 0, "MODEL"],
+    [62, 1, 1, 2, 1, "CLIP"],
+    [66, 2, 1, 3, 0, "CLIP"],
+    [67, 2, 1, 4, 0, "CLIP"],
+    [68, 14, 0, 29, 2, "CONTROL_NET"],
+    [69, 3, 0, 29, 0, "CONDITIONING"],
+    [71, 29, 0, 16, 1, "CONDITIONING"],
+    [74, 4, 0, 16, 2, "CONDITIONING"],
+    [76, 13, 0, 16, 3, "LATENT"],
+    [77, 2, 0, 16, 0, "MODEL"],
+    [78, 5, 0, 30, 0, "IMAGE"],
+    [79, 30, 0, 31, 0, "IMAGE"],
+    [80, 30, 0, 29, 3, "IMAGE"],
+    [81, 16, 0, 17, 0, "LATENT"],
+    [82, 1, 2, 17, 1, "VAE"],
+    [86, 4, 0, 29, 1, "CONDITIONING"],
+    [88, 33, 0, 13, 0, "LATENT"],
+    [89, 1, 2, 29, 4, "VAE"],
+    [90, 31, 0, 38, 0, "MASK"],
+    [91, 38, 0, 13, 1, "MASK"],
+    [92, 17, 0, 39, 0, "IMAGE"],
+    [93, 39, 0, 19, 0, "IMAGE"]
+  ],
+  "groups": [],
+  "config": {},
+  "extra": {
+    "ds": {
+      "scale": 0.8048107591760563,
+      "offset": [585.4896626179233, 285.92675472150813]
+    },
+    "frontendVersion": "1.27.10"
+  },
+  "version": 0.4
+}
