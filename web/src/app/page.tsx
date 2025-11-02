@@ -13,6 +13,20 @@ export default function Home() {
   const coldStartTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [credits, setCredits] = useState<number | null>(null);
 
+  // Client-side prewarm via our own API route so it hits the same host as generate
+  useEffect(() => {
+    (async () => {
+      try {
+        await fetch("/api/generate", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ warm: true }),
+          keepalive: true,
+        });
+      } catch {}
+    })();
+  }, []);
+
   useEffect(() => {
     let isMounted = true;
     (async () => {

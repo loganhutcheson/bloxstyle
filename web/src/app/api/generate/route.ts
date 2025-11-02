@@ -5,7 +5,7 @@ import { prisma } from "@/lib/prisma";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
-export const maxDuration = 60;
+export const maxDuration = 300;
 
 type GenerateBody = { prompt?: string };
 
@@ -19,15 +19,19 @@ export async function POST(request: Request) {
       });
     }
     const email = (session.user.email || "").toLowerCase();
+    const costPerGeneration = 100;
 
-		const body = (await request.json()) as GenerateBody;
+		const body = (await request.json()) as GenerateBody & { warm?: boolean };
+		const isWarmOnly = body?.warm === true;
 		const prompt = (body?.prompt || "").trim();
-		if (!prompt) {
-			return new Response(JSON.stringify({ message: "Missing prompt" }), {
-				status: 400,
-				headers: { "Content-Type": "application/json" },
-			});
-		}
+
+		if (!isWarmOnly) {
+			if (!prompt) {
+				return new Response(JSON.stringify({ message: "Missing prompt" }), {
+					status: 400,
+					headers: { "Content-Type": "application/json" },
+				});
+			}
 
     // Ensure user has credits
     if (!email) {
@@ -41,12 +45,12 @@ export async function POST(request: Request) {
       update: {},
       create: { email, credits: 1000 },
     });
-    const costPerGeneration = 100;
     if (creditRow.credits < costPerGeneration) {
       return new Response(JSON.stringify({ message: "Insufficient credits" }), {
         status: 402,
         headers: { "Content-Type": "application/json" },
       });
+    }
     }
 
 		const apiBase = process.env.GENERATOR_API_URL || "http://localhost:8090";
@@ -59,7 +63,7 @@ export async function POST(request: Request) {
 				"Content-Type": "application/json",
 				"Authorization": `Bearer ${jwt}`,
 			},
-			body: JSON.stringify({ prompt }),
+			body: JSON.stringify(isWarmOnly ? { warm: true } : { prompt }),
 		});
 
 		if (!upstream.ok) {
@@ -80,6 +84,18 @@ export async function POST(request: Request) {
 			});
 		}
 
+
+		if (isWarmOnly) {
+			// Pass through upstream JSON or OK
+			let payload: unknown = { ok: true };
+			try {
+				payload = await upstream.json();
+			} catch {}
+			return new Response(JSON.stringify(payload), {
+				status: upstream.status,
+				headers: { "Content-Type": "application/json" },
+			});
+		}
 
 		const arrayBuffer = await upstream.arrayBuffer();
 
