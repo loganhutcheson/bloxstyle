@@ -46,6 +46,13 @@ export default function HeaderUserMenu() {
             Home
           </Link>
           <Link
+            href="/buy"
+            className="block px-3 py-2 text-sm hover:bg-black/5 dark:hover:bg-white/10"
+            onClick={() => setOpen(false)}
+          >
+            Buy credits
+          </Link>
+          <Link
             href="/settings"
             className="block px-3 py-2 text-sm hover:bg-black/5 dark:hover:bg-white/10"
             onClick={() => setOpen(false)}

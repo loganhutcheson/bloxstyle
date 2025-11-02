@@ -50,6 +50,11 @@ function SignInPageContent() {
       <div className="flex-1 w-full flex items-center justify-center">
         <div className="w-full max-w-sm text-center">
           <h1 className="text-2xl font-semibold mb-6">Sign in</h1>
+          <div className="mb-4 flex items-center gap-2 rounded-md border border-amber-400/40 bg-amber-50 text-amber-700 px-3 py-1 dark:bg-amber-900/20 dark:text-amber-300 dark:border-amber-300/30">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src="/coin.svg" alt="coin" className="h-4 w-4" />
+            <span className="font-semibold italic">Free 1000 credits</span>
+          </div>
           {isAuthed ? (
             <p className="text-sm text-black/60 dark:text-white/60">
               You are already signed in.
