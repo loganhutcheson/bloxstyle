@@ -7,6 +7,7 @@ export async function middleware(request: NextRequest) {
   if (
     pathname.startsWith("/_next") ||
     pathname.startsWith("/api/auth") ||
+    pathname.startsWith("/api/stripe") ||
     pathname === "/signin" ||
     pathname.startsWith("/favicon") ||
     pathname.startsWith("/public")
@@ -14,7 +15,8 @@ export async function middleware(request: NextRequest) {
     return NextResponse.next();
   }
 
-  const isProtected = pathname === "/" || pathname.startsWith("/api/generate");
+  // Only protect sensitive pages; generator and home are public now
+  const isProtected = pathname.startsWith("/settings");
   if (!isProtected) return NextResponse.next();
 
   const token = await getToken({ req: request, secret: process.env.AUTH_SECRET });

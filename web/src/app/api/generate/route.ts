@@ -1,6 +1,3 @@
-// Removed unused imports
-import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 
 export const runtime = "nodejs";
@@ -10,47 +7,34 @@ export const maxDuration = 300;
 type GenerateBody = { prompt?: string };
 
 export async function POST(request: Request) {
-	try {
-    const session = await getServerSession(authOptions);
-    if (!session?.user) {
-      return new Response(JSON.stringify({ message: "Unauthorized" }), {
-        status: 401,
-        headers: { "Content-Type": "application/json" },
-      });
-    }
-    const email = (session.user.email || "").toLowerCase();
+  try {
     const costPerGeneration = 100;
 
 		const body = (await request.json()) as GenerateBody & { warm?: boolean };
 		const isWarmOnly = body?.warm === true;
 		const prompt = (body?.prompt || "").trim();
 
-		if (!isWarmOnly) {
-			if (!prompt) {
-				return new Response(JSON.stringify({ message: "Missing prompt" }), {
-					status: 400,
-					headers: { "Content-Type": "application/json" },
-				});
-			}
+    if (!isWarmOnly) {
+      if (!prompt) {
+        return new Response(JSON.stringify({ message: "Missing prompt" }), {
+          status: 400,
+          headers: { "Content-Type": "application/json" },
+        });
+      }
 
-    // Ensure user has credits
-    if (!email) {
-      return new Response(JSON.stringify({ message: "Missing user email" }), {
-        status: 400,
-        headers: { "Content-Type": "application/json" },
+      // Use a global credit pool row
+      const globalKey = "global";
+      const creditRow = await prisma.credit.upsert({
+        where: { email: globalKey },
+        update: {},
+        create: { email: globalKey, credits: 10000 },
       });
-    }
-    const creditRow = await prisma.credit.upsert({
-      where: { email },
-      update: {},
-      create: { email, credits: 1000 },
-    });
-    if (creditRow.credits < costPerGeneration) {
-      return new Response(JSON.stringify({ message: "Insufficient credits" }), {
-        status: 402,
-        headers: { "Content-Type": "application/json" },
-      });
-    }
+      if (creditRow.credits < costPerGeneration) {
+        return new Response(JSON.stringify({ message: "Insufficient global credits" }), {
+          status: 402,
+          headers: { "Content-Type": "application/json" },
+        });
+      }
     }
 
 		const apiBase = process.env.GENERATOR_API_URL || "http://localhost:8090";
@@ -99,10 +83,10 @@ export async function POST(request: Request) {
 
 		const arrayBuffer = await upstream.arrayBuffer();
 
-    // Decrement a credit only on successful upstream response
+    // Decrement a credit only on successful upstream response (global pool)
     try {
       await prisma.credit.update({
-        where: { email },
+        where: { email: "global" },
         data: { credits: { decrement: costPerGeneration } },
       });
     } catch {}
