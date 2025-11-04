@@ -3,6 +3,7 @@ import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import Providers from "./Providers";
 import HeaderUserMenu from "@/components/HeaderUserMenu";
+import { Analytics } from "@vercel/analytics/next"
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -17,6 +18,14 @@ const geistMono = Geist_Mono({
 export const metadata: Metadata = {
   title: "Roblox AI Clothing Generator – 2D Roblox Shirt Maker",
   description: "Generate 2D Roblox shirt designs instantly with our AI clothing generator.",
+  icons: {
+    icon: [
+      { url: "/shirt_logo.jpg", type: "image/jpeg" },
+      { url: "/tshirt-favicon.svg", type: "image/svg+xml" },
+    ],
+    apple: "/shirt_logo.jpg",
+    shortcut: "/shirt_logo.jpg",
+  },
 };
 
 export default function RootLayout({

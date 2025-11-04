@@ -1,0 +1,22 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <!-- Pixel-style T-shirt with red square, matches the provided look -->
+  <defs>
+    <style>
+      .bg { fill: #2f2f33; }
+      .shirt { fill: #ffffff; }
+      .shadow { fill: #e6e6e6; }
+      .red { fill: #d92d27; }
+    </style>
+  </defs>
+  <rect class="bg" x="0" y="0" width="64" height="64" rx="8"/>
+
+  <!-- T-shirt body -->
+  <path class="shirt" d="M20 16h24l6 6v8l-6-2v20H20V28l-6 2v-8l6-6z"/>
+  <!-- Light shadow on the right to keep the pixel look -->
+  <path class="shadow" d="M38 16h6l6 6v8l-6-2v20h-6V16z" opacity=".45"/>
+
+  <!-- Red square (with inner white square) -->
+  <rect class="red" x="24" y="28" width="16" height="12" rx="1"/>
+  <rect x="30" y="32" width="4" height="4" rx="0.5" fill="#ffffff"/>
+</svg>
+
