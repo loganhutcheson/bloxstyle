@@ -11,6 +11,7 @@ export default function Preview() {
 	const containerRef = useRef<HTMLDivElement | null>(null);
 	const materialRef = useRef<THREE.MeshStandardMaterial | null>(null);
 	const [loadingTex, setLoadingTex] = useState(false);
+  const loadedRootRef = useRef<THREE.Object3D | null>(null);
 
 	useEffect(() => {
 		if (!containerRef.current) return;
@@ -42,7 +43,6 @@ export default function Preview() {
 
     // Optional: load a GLB avatar if provided via env or UI
     const presetUrl = (process.env.NEXT_PUBLIC_AVATAR_GLB_URL || "").trim();
-    let loadedRoot: THREE.Object3D | null = null;
     const tryLoadGLB = (url: string) => {
       if (!url) return;
       const loader = new GLTFLoader();
@@ -52,24 +52,34 @@ export default function Preview() {
         (gltf) => {
           // Remove cube when model loads
           scene.remove(cube);
-          loadedRoot = gltf.scene;
-          loadedRoot.traverse((obj: THREE.Object3D) => {
+          loadedRootRef.current = gltf.scene;
+          loadedRootRef.current.traverse((obj: THREE.Object3D) => {
             if (obj instanceof THREE.Mesh) {
               obj.castShadow = true;
               obj.receiveShadow = true;
+              // Use the first mesh's material as the target for texture application
+              if (!materialRef.current && obj.material) {
+                const baseMat = Array.isArray(obj.material) ? obj.material[0] : obj.material;
+                if (baseMat) {
+                  // clone to avoid mutating shared materials
+                  const cloned = baseMat.clone() as THREE.MeshStandardMaterial;
+                  obj.material = cloned;
+                  materialRef.current = cloned;
+                }
+              }
             }
           });
           // Center and scale roughly
-          const box = new THREE.Box3().setFromObject(loadedRoot);
+          const box = new THREE.Box3().setFromObject(loadedRootRef.current);
           const size = new THREE.Vector3();
           box.getSize(size);
           const scale = 1.5 / Math.max(size.x, size.y, size.z);
-          loadedRoot.scale.setScalar(scale);
-          box.setFromObject(loadedRoot);
+          loadedRootRef.current.scale.setScalar(scale);
+          box.setFromObject(loadedRootRef.current);
           const center = new THREE.Vector3();
           box.getCenter(center);
-          loadedRoot.position.sub(center);
-          scene.add(loadedRoot);
+          loadedRootRef.current.position.sub(center);
+          scene.add(loadedRootRef.current);
         },
         undefined,
         () => {
@@ -94,11 +104,19 @@ export default function Preview() {
           (obj) => {
             // Remove cube if present
             scene.remove(cube);
-            loadedRoot = obj;
+            loadedRootRef.current = obj;
             obj.traverse((o: THREE.Object3D) => {
               if (o instanceof THREE.Mesh) {
                 o.castShadow = true;
                 o.receiveShadow = true;
+                if (!materialRef.current && o.material) {
+                  const baseMat = Array.isArray(o.material) ? o.material[0] : o.material;
+                  if (baseMat) {
+                    const cloned = baseMat.clone() as THREE.MeshStandardMaterial;
+                    o.material = cloned;
+                    materialRef.current = cloned;
+                  }
+                }
               }
             });
             // Center/scale
@@ -153,8 +171,8 @@ export default function Preview() {
 			renderer.dispose();
 			geometry.dispose();
 			material.dispose();
-      if (loadedRoot) {
-        scene.remove(loadedRoot);
+      if (loadedRootRef.current) {
+        scene.remove(loadedRootRef.current);
       }
 			if (renderer.domElement.parentElement === container) {
 				container.removeChild(renderer.domElement);
@@ -162,41 +180,86 @@ export default function Preview() {
 		};
 	}, []);
 
-	const onFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
-		const file = e.target.files?.[0];
+  const applyTextureFromFile = (file: File) => {
+    if (!file || !containerRef.current) return;
+    setLoadingTex(true);
+    try {
+      const url = URL.createObjectURL(file);
+      const loader = new THREE.TextureLoader();
+      loader.setCrossOrigin("anonymous");
+      loader.load(
+        url,
+        (tex) => {
+          tex.colorSpace = THREE.SRGBColorSpace;
+          tex.wrapS = THREE.ClampToEdgeWrapping;
+          tex.wrapT = THREE.ClampToEdgeWrapping;
+          if (materialRef.current) {
+            materialRef.current.map?.dispose?.();
+            materialRef.current.map = tex;
+            materialRef.current.color.set(0xffffff);
+            materialRef.current.needsUpdate = true;
+          }
+          // Also try to apply to all meshes of loaded model if present
+          if (loadedRootRef.current) {
+            loadedRootRef.current.traverse((o: THREE.Object3D) => {
+              if (o instanceof THREE.Mesh && o.material) {
+                const m = (Array.isArray(o.material) ? o.material[0] : o.material) as THREE.MeshStandardMaterial;
+                if (m) {
+                  m.map = tex;
+                  m.color.set(0xffffff);
+                  m.needsUpdate = true;
+                }
+              }
+            });
+          }
+          setLoadingTex(false);
+          URL.revokeObjectURL(url);
+        },
+        undefined,
+        () => {
+          setLoadingTex(false);
+          URL.revokeObjectURL(url);
+        }
+      );
+    } catch {
+      setLoadingTex(false);
+    }
+  };
+
+  const onFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
 		if (!file || !containerRef.current || !materialRef.current) return;
-		setLoadingTex(true);
-		try {
-			const url = URL.createObjectURL(file);
-			const loader = new THREE.TextureLoader();
-			loader.setCrossOrigin("anonymous");
-			loader.load(
-				url,
-				(tex) => {
-					tex.colorSpace = THREE.SRGBColorSpace;
-					tex.wrapS = THREE.ClampToEdgeWrapping;
-					tex.wrapT = THREE.ClampToEdgeWrapping;
-					materialRef.current!.map?.dispose?.();
-					materialRef.current!.map = tex;
-					materialRef.current!.color.set(0xffffff);
-					materialRef.current!.needsUpdate = true;
-					setLoadingTex(false);
-					URL.revokeObjectURL(url);
-				},
-				undefined,
-				() => {
-					setLoadingTex(false);
-					URL.revokeObjectURL(url);
-				}
-			);
-		} catch {
-			setLoadingTex(false);
-		}
+    applyTextureFromFile(file);
 	};
 
+  // Drag & drop support on the 3D canvas container
+  useEffect(() => {
+    const el = containerRef.current;
+    if (!el) return;
+    const prevent = (e: DragEvent) => {
+      e.preventDefault();
+      e.stopPropagation();
+    };
+    const onDrop = (e: DragEvent) => {
+      prevent(e);
+      const file = e.dataTransfer?.files?.[0];
+      if (file && (/image\/png|image\/jpeg/).test(file.type)) {
+        applyTextureFromFile(file);
+      }
+    };
+    el.addEventListener("dragover", prevent);
+    el.addEventListener("dragenter", prevent);
+    el.addEventListener("drop", onDrop);
+    return () => {
+      el.removeEventListener("dragover", prevent);
+      el.removeEventListener("dragenter", prevent);
+      el.removeEventListener("drop", onDrop);
+    };
+  }, []);
+
 	return (
-		<div className="min-h-screen w-full p-6">
-			<h1 className="text-2xl font-semibold mb-4">3D Preview (Cube)</h1>
+    <div className="min-h-screen w-full p-6">
+      <h1 className="text-2xl font-semibold mb-4">3D Preview (Roblox avatar prototype)</h1>
 			<div className="mb-3 flex items-center gap-3">
 				<label className="text-sm">Apply texture (PNG/JPG):</label>
 				<input type="file" accept="image/png,image/jpeg" onChange={onFileChange} />
@@ -206,8 +269,12 @@ export default function Preview() {
         To load a blocky avatar GLB, set NEXT_PUBLIC_AVATAR_GLB_URL in your env and refresh,
         or paste a hotlinkable GLB URL in code. We can wire a UI loader next.
       </div>
-			<div ref={containerRef} className="h-[500px] w-full rounded-md border border-black/10 dark:border-white/10 overflow-hidden" />
-			<p className="text-sm mt-3 text-black/60 dark:text-white/60">Use your mouse to orbit the cube.</p>
+      <div ref={containerRef} className="h-[500px] w-full rounded-md border border-black/10 dark:border-white/10 overflow-hidden relative">
+        <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
+          <span className="text-xs sm:text-sm bg-black/50 text-white px-2 py-1 rounded-md">Drag & drop a PNG/JPG onto the viewer to texture the model</span>
+        </div>
+      </div>
+      <p className="text-sm mt-3 text-black/60 dark:text-white/60">Drag & drop or use the file input above. Use your mouse to orbit.</p>
 		</div>
 	);
 }
