@@ -20,6 +20,7 @@ export default function Home() {
   const [inpaintMask, setInpaintMask] = useState<File | null>(null);
   const [inpaintSubmitting, setInpaintSubmitting] = useState(false);
   const [inpaintResultUrl, setInpaintResultUrl] = useState<string | null>(null);
+  const [inpaintError, setInpaintError] = useState<string | null>(null);
 
   // Client-side prewarm via our own API route so it hits the same host as generate
   useEffect(() => {
@@ -141,6 +142,7 @@ export default function Home() {
     if (!inpaintImage) return;
     setInpaintSubmitting(true);
     setInpaintResultUrl(null);
+    setInpaintError(null);
     try {
       const fd = new FormData();
       fd.append("prompt", inpaintPrompt);
@@ -150,8 +152,10 @@ export default function Home() {
       }
       const response = await fetch("/api/inpaint", {
         method: "POST",
+        headers: { Accept: "image/*" },
         body: fd,
       });
+      const ct = response.headers.get("content-type") || "";
       if (!response.ok) {
         const maybeJson: unknown = await response.json().catch(() => ({}));
         const message =
@@ -160,7 +164,34 @@ export default function Home() {
             : "Inpaint failed";
         throw new Error(message);
       }
+      if (!ct.startsWith("image/")) {
+        const text = await response.text().catch(() => "");
+        let message = "Inpaint failed";
+        try {
+          const maybe: unknown = JSON.parse(text);
+          if (isRecord(maybe) && typeof maybe.message === "string") {
+            message = maybe.message;
+          }
+        } catch {
+          if (text) message = text;
+        }
+        const uct = response.headers.get("x-upstream-content-type") || ct;
+        const ustatus = response.headers.get("x-upstream-status") || "";
+        throw new Error(`${message}${uct ? ` (ct=${uct})` : ""}${ustatus ? ` [upstream ${ustatus}]` : ""}`);
+      }
       const blob = await response.blob();
+      if (!blob.size) {
+        const clen = response.headers.get("content-length") || "0";
+        const uct = response.headers.get("x-upstream-content-type") || "";
+        const ucl = response.headers.get("x-upstream-content-length") || "";
+        const ustatus = response.headers.get("x-upstream-status") || "";
+        const fimg = response.headers.get("x-forwarded-image-bytes") || "";
+        const ftype = response.headers.get("x-forwarded-image-type") || "";
+        const fmask = response.headers.get("x-forwarded-mask-bytes") || "";
+        throw new Error(
+          `Empty image response (len=${clen})${uct ? ` ct=${uct}` : ""}${ucl ? ` ulen=${ucl}` : ""}${ustatus ? ` [upstream ${ustatus}]` : ""}${fimg ? `; sent=${fimg}B` : ""}${ftype ? ` type=${ftype}` : ""}${fmask ? ` mask=${fmask}B` : ""}`
+        );
+      }
       const url = URL.createObjectURL(blob);
       setInpaintResultUrl(url);
       // refresh credits
@@ -169,7 +200,9 @@ export default function Home() {
         const data: unknown = await res.json().catch(() => ({}));
         if (isRecord(data) && typeof data.credits === "number") setCredits(data.credits);
       } catch {}
-    } catch {
+    } catch (e: unknown) {
+      const message = e instanceof Error ? e.message : "Inpaint failed";
+      setInpaintError(message);
       try {
         const res = await fetch("/api/credits", { cache: "no-store" });
         const data: unknown = await res.json().catch(() => ({}));
@@ -182,13 +215,26 @@ export default function Home() {
 
   return (
     <div className="min-h-screen w-full flex flex-col p-6 gap-6">
+      <div className="w-full max-w-2xl mx-auto flex items-center justify-end gap-2">
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img src="/coin.svg" alt="Credits" width={18} height={18} />
+        <span className="text-sm">{typeof credits === "number" ? credits : "—"}</span>
+      </div>
+      <div className="w-full max-w-2xl mx-auto">
+        <p className="text-xs italic text-black/60 dark:text-white/60 text-right">
+          these are the free coins for early users, please be kind
+        </p>
+      </div>
       <div className="w-full py-16 text-center">
         <h1 className="text-5xl md:text-6xl font-extrabold tracking-tight">Roblox Clothing</h1>
       </div>
 
       <div className="w-full max-w-2xl mx-auto">
-        <label htmlFor="prompt" className="block text-base font-medium mb-2">
-          Text to Shirt (Classic 2D):
+        <div className="mt-0">
+          <AvatarViewer heightPx={380} />
+        </div>
+        <label htmlFor="prompt" className="block text-base font-medium mb-2 mt-8">
+          Text to Shirt (Classic):
         </label>
         <form onSubmit={handleSubmit} className="flex gap-2">
           <input
@@ -209,12 +255,8 @@ export default function Home() {
         </form>
 
         <p className="mt-2 text-sm text-red-700/80 dark:text-red-400/80">
-          Note: short abstract prompts are best i.e. &#39;galactic explosion&#39;.
+          note: version 0.00001 haha, just wait till this is good
         </p>
-
-        <div className="mt-6">
-          <AvatarViewer heightPx={380} />
-        </div>
 
         {generatedImageUrl ? (
           <div className="mt-6">
@@ -276,6 +318,9 @@ export default function Home() {
             >
               {inpaintSubmitting ? "Editing..." : "Edit Image"}
             </button>
+            {inpaintError ? (
+              <p className="text-sm text-red-600 dark:text-red-400 mt-1">{inpaintError}</p>
+            ) : null}
           </form>
           {inpaintResultUrl ? (
             <div className="mt-4">
