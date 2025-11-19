@@ -135,6 +135,8 @@ export default function Home() {
         </div>
       </div>
 
+      {/* Chat UI removed as requested */}
+
       {/* bottom spacer for scroll buffer (reduced 50%) */}
       <div aria-hidden className="h-20 sm:h-28 lg:h-40" />
 

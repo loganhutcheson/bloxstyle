@@ -131,6 +131,13 @@ export default function AvatarViewer({ heightPx = 720 }: AvatarViewerProps) {
   const [paintEnabled, setPaintEnabled] = useState<boolean>(false);
   const paintingActiveRef = useRef<boolean>(false);
   const brushSizeRef = useRef<number>(14);
+  // Qwen edit status
+  const [qwenActive, setQwenActive] = useState<boolean>(false);
+  const [qwenElapsedMs, setQwenElapsedMs] = useState<number>(0);
+  const [qwenStatus, setQwenStatus] = useState<string | null>(null);
+  const qwenStartRef = useRef<number | null>(null);
+  const QWEN_MAX_MS = 180000; // 3 minutes
+  const [qwenPrompt, setQwenPrompt] = useState<string>("Add a banana logo, keep same design");
   const shirtMatRef = useRef<THREE.ShaderMaterial | null>(null);
   const pantsMatRef = useRef<THREE.ShaderMaterial | null>(null);
   const shirtCanvasRef = useRef<HTMLCanvasElement | null>(null);
@@ -1007,6 +1014,120 @@ export default function AvatarViewer({ heightPx = 720 }: AvatarViewerProps) {
   };
 
   // Removed single texture preview uploader per request
+  // Progress ticker for Qwen status bar
+  useEffect(() => {
+    if (!qwenActive) {
+      qwenStartRef.current = null;
+      return;
+    }
+    qwenStartRef.current = performance.now();
+    setQwenElapsedMs(0);
+    const id = setInterval(() => {
+      if (!qwenStartRef.current) return;
+      setQwenElapsedMs(performance.now() - qwenStartRef.current);
+    }, 200);
+    return () => clearInterval(id);
+  }, [qwenActive]);
+
+  // Helper: capture currently applied shirt as a PNG blob
+  const getCurrentShirtBlob = async (): Promise<Blob | null> => {
+    // Prefer live canvas if painting is active
+    if (shirtCanvasRef.current) {
+      const blob: Blob = await new Promise((resolve) =>
+        shirtCanvasRef.current!.toBlob((b) => resolve((b as Blob) || new Blob()), "image/png")
+      );
+      return blob;
+    }
+    // Try pulling from current shirt texture on shader uniforms
+    try {
+      const mat = shirtMatRef.current;
+      if (mat && mat.uniforms && (mat.uniforms as Record<string, THREE.IUniform>).texture_shirt) {
+        const tex = (mat.uniforms as Record<string, THREE.IUniform>).texture_shirt.value as THREE.Texture;
+        const img = tex?.image as HTMLImageElement | HTMLCanvasElement | ImageBitmap | null;
+        if (img) {
+          const w =
+            "naturalWidth" in (img as HTMLImageElement)
+              ? ((img as HTMLImageElement).naturalWidth || (img as HTMLImageElement).width || 0)
+              : ((img as HTMLCanvasElement | ImageBitmap).width || 0);
+          const h =
+            "naturalHeight" in (img as HTMLImageElement)
+              ? ((img as HTMLImageElement).naturalHeight || (img as HTMLImageElement).height || 0)
+              : ((img as HTMLCanvasElement | ImageBitmap).height || 0);
+          if (w > 0 && h > 0) {
+            const c = document.createElement("canvas");
+            c.width = w;
+            c.height = h;
+            const ctx = c.getContext("2d");
+            if (ctx) {
+              try {
+                ctx.drawImage(img as CanvasImageSource, 0, 0, w, h);
+                const blob: Blob = await new Promise((resolve) =>
+                  c.toBlob((b) => resolve((b as Blob) || new Blob()), "image/png")
+                );
+                return blob;
+              } catch {}
+            }
+          }
+        }
+      }
+    } catch {}
+    // Fallback to preview data URL if present
+    if (shirtPreviewUrl) {
+      try {
+        const res = await fetch(shirtPreviewUrl);
+        if (res.ok) return await res.blob();
+      } catch {}
+    }
+    return null;
+  };
+
+  // Trigger Qwen image edit using current shirt texture; apply result to avatar
+  const runQwenEdit = async () => {
+    try {
+      const blob = await getCurrentShirtBlob();
+      if (!blob) {
+        setModelStatus("No shirt texture to edit. Please apply a shirt first.");
+        return;
+      }
+      setQwenActive(true);
+      setQwenStatus("Submitting to Magic (Qwen)...");
+      // Build form-data
+      const form = new FormData();
+      form.append("image", new File([blob], "shirt.png", { type: "image/png" }));
+      if (qwenPrompt && qwenPrompt.trim()) form.append("prompt", qwenPrompt.trim());
+      // Wait up to 3 minutes for response
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), QWEN_MAX_MS);
+      const res = await fetch("/api/qwen_edit", {
+        method: "POST",
+        body: form,
+        signal: controller.signal,
+      });
+      clearTimeout(timeoutId);
+      if (!res.ok) {
+        try {
+          const errTxt = await res.text();
+          setModelStatus(`Magic failed: ${errTxt.slice(0, 140)}`);
+        } catch {
+          setModelStatus("Magic failed.");
+        }
+        return;
+      }
+      setQwenStatus("Applying edited texture…");
+      const outBlob = await res.blob();
+      const fileName = "qwen_edited.png";
+      const outFile = new File([outBlob], fileName, { type: outBlob.type || "image/png" });
+      // Apply to avatar
+      await applyShirtAndPants(outFile, null);
+      setShirtFileName(fileName);
+      setModelStatus("Edited texture applied.");
+    } catch (e) {
+      setModelStatus("Magic request interrupted or failed.");
+    } finally {
+      setQwenActive(false);
+      setQwenStatus(null);
+    }
+  };
 
   // Apply Roblox clothing blending (shirt + pants) based on BloxClothViewer shader
   const applyShirtAndPants = async (shirtFile: File | null, pantsFile: File | null) => {
@@ -1207,26 +1328,26 @@ export default function AvatarViewer({ heightPx = 720 }: AvatarViewerProps) {
           maskDragRef.current = null;
         }}
       >
-        {/* Top-right circular toggle button */}
+        {/* Magic button at top-right */}
         <button
           type="button"
-          onClick={() => setPanelOpen((v) => !v)}
-          className="absolute top-2 right-2 h-7 w-7 rounded-full border border-black/60 dark:border-white/60 bg-transparent hover:bg-black/5 dark:hover:bg-white/10"
-          aria-label="Open panel"
-          title="Open panel"
-          style={{ zIndex: 5 }}
-        />
-        {/* Mask window toggle button (below) */}
-        <button
-          type="button"
-          onClick={() => setMaskPanelOpen((v) => !v)}
-          className="absolute top-12 right-2 h-8 w-8 rounded-full border border-black/60 dark:border-white/60 bg-transparent hover:bg-black/5 dark:hover:bg-white/10 flex items-center justify-center"
-          aria-label="Magic Prompt"
-          title="Magic Prompt"
-          style={{ zIndex: 5 }}
+          onClick={runQwenEdit}
+          className="absolute top-2 right-2 h-8 w-8 rounded-full border border-black/60 dark:border-white/60 bg-transparent hover:bg-black/5 dark:hover:bg-white/10 flex items-center justify-center"
+          aria-label="Magic"
+          title="Magic"
+          style={{ zIndex: 7 }}
         >
           <span aria-hidden>✨</span>
         </button>
+        {/* Prompt input for Magic (top-right, left of Magic button) */}
+        <input
+          type="text"
+          value={qwenPrompt}
+          onChange={(e) => setQwenPrompt(e.target.value)}
+          placeholder="Describe your edit…"
+          className="absolute top-2 right-12 max-w-[60%] sm:max-w-[70%] md:max-w-[75%] rounded-md border border-black/20 dark:border-white/20 bg-white/80 dark:bg-black/60 px-2 py-1 text-xs sm:text-sm"
+          style={{ zIndex: 7 }}
+        />
         {/* Apply buttons group (top-right) */}
         <div
           className="absolute top-20 right-2 flex flex-col gap-2 items-stretch"
@@ -1691,6 +1812,26 @@ export default function AvatarViewer({ heightPx = 720 }: AvatarViewerProps) {
                 onChange={(e) => setClothGamma(parseFloat(e.target.value))}
               />
               <span className="tabular-nums w-10 text-right">{clothGamma.toFixed(2)}</span>
+            </div>
+          </div>
+        ) : null}
+
+        {/* Qwen status bar overlay */}
+        {qwenActive ? (
+          <div className="absolute left-0 right-0 top-0 p-2" style={{ zIndex: 8 }}>
+            <div className="h-2 rounded bg-black/30">
+              <div
+                className="h-2 rounded bg-purple-600"
+                style={{
+                  width: `${Math.max(
+                    0,
+                    Math.min(100, Math.round((qwenElapsedMs / QWEN_MAX_MS) * 100))
+                  )}%`,
+                }}
+              />
+            </div>
+            <div className="mt-1 text-[10px] sm:text-xs text-white/90 drop-shadow">
+              {qwenStatus || "Waiting for edited image… (up to 3 minutes)"}
             </div>
           </div>
         ) : null}
