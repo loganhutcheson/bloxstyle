@@ -3,20 +3,68 @@ import { NextResponse } from "next/server";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
+function getQwenUrl() {
+  return (
+    process.env.QWEN_EDIT_URL ||
+    process.env.NEXT_PUBLIC_QWEN_EDIT_URL ||
+    ""
+  );
+}
+
+async function warmQwen(qwenUrl: string) {
+  const postRes = await fetch(qwenUrl, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Accept: "application/json",
+    },
+    body: JSON.stringify({ warm: true }),
+  });
+
+  if (postRes.ok) return postRes;
+
+  if (![400, 404, 405, 415, 422].includes(postRes.status)) {
+    return postRes;
+  }
+
+  return fetch(qwenUrl, {
+    method: "GET",
+    headers: { Accept: "application/json" },
+  });
+}
+
 export async function POST(req: Request) {
   try {
+    const qwenUrl = getQwenUrl();
+    if (!qwenUrl) {
+      return new NextResponse("QWEN_EDIT_URL not configured", { status: 501 });
+    }
+
+    const contentType = req.headers.get("content-type") || "";
+    if (contentType.includes("application/json")) {
+      const body = (await req.json().catch(() => null)) as { warm?: boolean } | null;
+      if (body?.warm === true) {
+        const res = await warmQwen(qwenUrl);
+        if (!res.ok) {
+          const t = await res.text().catch(() => "");
+          return new NextResponse(`Qwen warm error: ${t || res.status}`, {
+            status: 502,
+          });
+        }
+        const ct = res.headers.get("content-type") || "";
+        if (ct.includes("application/json")) {
+          const payload = await res.json().catch(() => ({ ok: true }));
+          return NextResponse.json({ ok: true, warmed: true, upstream: payload });
+        }
+        return NextResponse.json({ ok: true, warmed: true });
+      }
+    }
+
     const formData = await req.formData();
     const image = formData.get("image") as File | null;
     const prompt = formData.get("prompt") as string | null;
     if (!image) {
       return new NextResponse("Missing image", { status: 400 });
-    }
-    const qwenUrl =
-      process.env.QWEN_EDIT_URL ||
-      process.env.NEXT_PUBLIC_QWEN_EDIT_URL ||
-      "";
-    if (!qwenUrl) {
-      return new NextResponse("QWEN_EDIT_URL not configured", { status: 501 });
     }
 
     // Forward to upstream

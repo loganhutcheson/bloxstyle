@@ -2,12 +2,12 @@ import os
 import io
 import sys
 import modal
-from modal import gpu
 import traceback
 from fastapi import Request, Response
 from fastapi.responses import JSONResponse
 
 app = modal.App("roblox-shirt-lora")
+ROOT = os.path.dirname(os.path.abspath(__file__))
 
 # Dependencies image
 image = (
@@ -20,13 +20,13 @@ image = (
 		"pip install diffusers==0.30.2 transformers==4.45.2 accelerate==1.0.1 Pillow==10.4.0 safetensors==0.4.5 numpy==1.26.4 fastapi[standard]==0.115.4",
 	)
 	# Include only the minimal inference helpers to avoid uploading the whole repo
-	.add_local_file("/Users/loganhutcheson/Workspace/projects/roblox_clothes_generator/controlnet_inpaint_generate.py", "/root/app/controlnet_inpaint_generate.py")
-	.add_local_file("/Users/loganhutcheson/Workspace/projects/roblox_clothes_generator/inference_shirt_lora.py", "/root/app/inference_shirt_lora.py")
+	.add_local_file(os.path.join(ROOT, "controlnet_inpaint_generate.py"), "/root/app/controlnet_inpaint_generate.py")
+	.add_local_file(os.path.join(ROOT, "inference_shirt_lora.py"), "/root/app/inference_shirt_lora.py")
 )
 
 # Local paths to embed (update if yours differ)
-LOCAL_LORA = "/Users/loganhutcheson/Workspace/projects/roblox_clothes_generator/weights/shirt_lora_output_v2/shirt_generator_final.safetensors"
-LOCAL_OUTLINE = "/Users/loganhutcheson/Workspace/projects/roblox_clothes_generator/Template-Shirts-Outline.png"
+LOCAL_LORA = os.path.join(ROOT, "weights", "shirt_lora_output_v2", "shirt_generator_final.safetensors")
+LOCAL_OUTLINE = os.path.join(ROOT, "Template-Shirts-Outline.png")
 
 # Remote paths baked into the image
 REMOTE_LORA = "/assets/shirt_generator_final.safetensors"
@@ -187,4 +187,3 @@ class ShirtGenerator:
 	@modal.fastapi_endpoint(method="GET")
 	async def health(self):
 		return JSONResponse({"ok": True})
-

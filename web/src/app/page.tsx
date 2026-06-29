@@ -12,11 +12,11 @@ export default function Home() {
   const coldStartTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [credits, setCredits] = useState<number | null>(null);
 
-  // Client-side prewarm via our own API route so it hits the same host as generate
+  // Client-side prewarm for the same Qwen backend used by the magic edit button.
   useEffect(() => {
     (async () => {
       try {
-        await fetch("/api/generate", {
+        await fetch("/api/qwen_edit", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ warm: true }),
