@@ -130,6 +130,7 @@ export default function AvatarViewer({ heightPx = 720 }: AvatarViewerProps) {
   // Painting state/refs
   const [paintEnabled, setPaintEnabled] = useState<boolean>(false);
   const paintingActiveRef = useRef<boolean>(false);
+  const [brushSize, setBrushSize] = useState<number>(14);
   const brushSizeRef = useRef<number>(14);
   // Qwen edit status
   const [qwenActive, setQwenActive] = useState<boolean>(false);
@@ -219,7 +220,7 @@ export default function AvatarViewer({ heightPx = 720 }: AvatarViewerProps) {
     return tex;
   };
 
-  const updateHeadMaterialsAndOverlay = useCallback((retryIfNeeded = true) => {
+  const updateHeadMaterialsAndOverlay = useCallback(function updateHeadMaterialsAndOverlay(retryIfNeeded = true) {
     // Update base color
     if (headBaseRef.current) {
       const m = headBaseRef.current.material as THREE.MeshStandardMaterial;
@@ -1021,7 +1022,6 @@ export default function AvatarViewer({ heightPx = 720 }: AvatarViewerProps) {
       return;
     }
     qwenStartRef.current = performance.now();
-    setQwenElapsedMs(0);
     const id = setInterval(() => {
       if (!qwenStartRef.current) return;
       setQwenElapsedMs(performance.now() - qwenStartRef.current);
@@ -1090,6 +1090,7 @@ export default function AvatarViewer({ heightPx = 720 }: AvatarViewerProps) {
         return;
       }
       setQwenActive(true);
+      setQwenElapsedMs(0);
       setQwenStatus("Submitting to Magic (Qwen)...");
       // Build form-data
       const form = new FormData();
@@ -1540,8 +1541,12 @@ export default function AvatarViewer({ heightPx = 720 }: AvatarViewerProps) {
                     min={4}
                     max={64}
                     step={1}
-                    defaultValue={brushSizeRef.current}
-                    onChange={(e) => (brushSizeRef.current = parseInt(e.target.value || "14", 10))}
+                    value={brushSize}
+                    onChange={(e) => {
+                      const nextSize = parseInt(e.target.value || "14", 10);
+                      brushSizeRef.current = nextSize;
+                      setBrushSize(nextSize);
+                    }}
                   />
                 </div>
               </div>
@@ -1854,6 +1859,5 @@ export default function AvatarViewer({ heightPx = 720 }: AvatarViewerProps) {
     </div>
   );
 }
-
 
 
