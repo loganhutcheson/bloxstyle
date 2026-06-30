@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
+export const maxDuration = 300;
 
 function getQwenUrl() {
   return (
@@ -33,6 +34,14 @@ async function warmQwen(qwenUrl: string) {
   });
 }
 
+function formatQwenError(prefix: string, text: string, status: number) {
+  const message = text || String(status);
+  if (message.toLowerCase().includes("invalid modal http call")) {
+    return `${prefix}: Modal rejected the HTTP call. Check that QWEN_EDIT_URL is the deployed Modal web endpoint URL and that the Modal app is deployed, not stopped.`;
+  }
+  return `${prefix}: ${message}`;
+}
+
 export async function POST(req: Request) {
   try {
     const qwenUrl = getQwenUrl();
@@ -47,7 +56,7 @@ export async function POST(req: Request) {
         const res = await warmQwen(qwenUrl);
         if (!res.ok) {
           const t = await res.text().catch(() => "");
-          return new NextResponse(`Qwen warm error: ${t || res.status}`, {
+          return new NextResponse(formatQwenError("Qwen warm error", t, res.status), {
             status: 502,
           });
         }
@@ -78,7 +87,7 @@ export async function POST(req: Request) {
     });
     if (!res.ok) {
       const t = await res.text().catch(() => "");
-      return new NextResponse(`Qwen edit error: ${t || res.status}`, {
+      return new NextResponse(formatQwenError("Qwen edit error", t, res.status), {
         status: 502,
       });
     }
