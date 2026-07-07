@@ -4,8 +4,10 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 export const maxDuration = 300;
 
-function getQwenUrl() {
+function getMagicUrl() {
   return (
+    process.env.MAGIC_EDIT_URL ||
+    process.env.SHIRT_GENERATOR_URL ||
     process.env.QWEN_EDIT_URL ||
     process.env.NEXT_PUBLIC_QWEN_EDIT_URL ||
     ""
@@ -36,17 +38,18 @@ async function warmQwen(qwenUrl: string) {
 
 function formatQwenError(prefix: string, text: string, status: number) {
   const message = text || String(status);
-  if (message.toLowerCase().includes("invalid modal http call")) {
-    return `${prefix}: Modal rejected the HTTP call. Check that QWEN_EDIT_URL is the deployed Modal web endpoint URL and that the Modal app is deployed, not stopped.`;
+  const lower = message.toLowerCase();
+  if (lower.includes("invalid modal http call") || lower.includes("invalid function call")) {
+    return `${prefix}: Modal rejected the HTTP call. Check that MAGIC_EDIT_URL or QWEN_EDIT_URL is the deployed Modal web endpoint URL and that the Modal app is deployed, not stopped.`;
   }
   return `${prefix}: ${message}`;
 }
 
 export async function POST(req: Request) {
   try {
-    const qwenUrl = getQwenUrl();
+    const qwenUrl = getMagicUrl();
     if (!qwenUrl) {
-      return new NextResponse("QWEN_EDIT_URL not configured", { status: 501 });
+      return new NextResponse("MAGIC_EDIT_URL or QWEN_EDIT_URL not configured", { status: 501 });
     }
 
     const contentType = req.headers.get("content-type") || "";

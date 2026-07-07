@@ -120,7 +120,20 @@ class ShirtGenerator:
 		self.load_custom_lora_weights_into_unet(self.pipe.unet, REMOTE_LORA, lora_scale=0.75)
 		print(f"Initialized pipeline on device={device}, dtype={dtype}")
 
-	def _infer(self, prompt: str) -> bytes:
+	def _image_from_upload(self, image_bytes: bytes | None, width: int, height: int):
+		from PIL import Image
+
+		if not image_bytes:
+			return Image.new("RGB", (width, height), color=(255, 255, 255))
+
+		img = Image.open(io.BytesIO(image_bytes))
+		if img.mode in ("RGBA", "LA") or (img.mode == "P" and "transparency" in img.info):
+			alpha = img.convert("RGBA")
+			background = Image.new("RGBA", alpha.size, (255, 255, 255, 255))
+			img = Image.alpha_composite(background, alpha)
+		return self.ensure_size(img.convert("RGB"), width, height)
+
+	def _infer(self, prompt: str, image_bytes: bytes | None = None) -> bytes:
 		"""Run a single inference and return PNG bytes."""
 		from PIL import Image
 		self._ensure_initialized()
@@ -129,7 +142,7 @@ class ShirtGenerator:
 		outline_img = self.load_image(REMOTE_OUTLINE)
 		control_img = self.create_control_image_from_outline(outline_img, width, height)
 		mask_img = self.create_inpaint_mask_from_black_regions(outline_img, width, height, dilate=6)
-		template_img = Image.new("RGB", (width, height), color=(255, 255, 255))
+		template_img = self._image_from_upload(image_bytes, width, height)
 
 		# Pad to multiples of 8 for model, then crop back to requested size
 		def _round_up_to_multiple_of_8(n: int) -> int:
@@ -173,13 +186,28 @@ class ShirtGenerator:
 
 	@modal.fastapi_endpoint(method="POST")
 	async def generate(self, request: Request):
-		"""HTTP endpoint: expects JSON {"prompt": "..."}, returns PNG bytes."""
+		"""HTTP endpoint: accepts JSON or multipart form data, returns PNG bytes."""
 		try:
-			data = await request.json()
-			prompt = (data.get("prompt") or "").strip()
+			content_type = request.headers.get("content-type") or ""
+			image_bytes = None
+
+			if "multipart/form-data" in content_type:
+				form = await request.form()
+				prompt = str(form.get("prompt") or "").strip()
+				upload = form.get("image")
+				if upload is not None and hasattr(upload, "read"):
+					image_bytes = await upload.read()
+			else:
+				data = await request.json()
+				if data.get("warm") is True:
+					self._ensure_initialized()
+					return JSONResponse({"ok": True, "warmed": True})
+				prompt = (data.get("prompt") or "").strip()
+
 			if not prompt:
 				return JSONResponse({"message": "Missing prompt"}, status_code=400)
-			png_bytes = self._infer(prompt)
+
+			png_bytes = self._infer(prompt, image_bytes=image_bytes)
 			return Response(content=png_bytes, media_type="image/png")
 		except Exception:
 			return JSONResponse({"message": "Internal error", "trace": traceback.format_exc()}, status_code=500)

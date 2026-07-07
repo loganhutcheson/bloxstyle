@@ -137,7 +137,7 @@ export default function AvatarViewer({ heightPx = 720 }: AvatarViewerProps) {
   const [qwenElapsedMs, setQwenElapsedMs] = useState<number>(0);
   const [qwenStatus, setQwenStatus] = useState<string | null>(null);
   const qwenStartRef = useRef<number | null>(null);
-  const QWEN_MAX_MS = 180000; // 3 minutes
+  const QWEN_MAX_MS = 290000; // just under the 300s serverless route limit
   const [qwenPrompt, setQwenPrompt] = useState<string>("Add a banana logo, keep same design");
   const shirtMatRef = useRef<THREE.ShaderMaterial | null>(null);
   const pantsMatRef = useRef<THREE.ShaderMaterial | null>(null);
@@ -1859,5 +1859,4 @@ export default function AvatarViewer({ heightPx = 720 }: AvatarViewerProps) {
     </div>
   );
 }
-
 
