@@ -1114,6 +1114,7 @@ export default function AvatarViewer({ heightPx = 720 }: AvatarViewerProps) {
         }
         return;
       }
+      window.dispatchEvent(new Event("credits-changed"));
       setQwenStatus("Applying edited texture…");
       const outBlob = await res.blob();
       const fileName = "qwen_edited.png";
@@ -1859,4 +1860,3 @@ export default function AvatarViewer({ heightPx = 720 }: AvatarViewerProps) {
     </div>
   );
 }
-

@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { prisma } from "@/lib/prisma";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -67,6 +68,7 @@ function formatQwenError(prefix: string, text: string, status: number) {
 
 export async function POST(req: Request) {
   const startedAt = Date.now();
+  let creditReserved = false;
   try {
     const qwenUrl = getMagicUrl();
     if (!qwenUrl) {
@@ -118,6 +120,24 @@ export async function POST(req: Request) {
       return new NextResponse("Missing image", { status: 400 });
     }
 
+    const globalKey = "global";
+    await prisma.credit.upsert({
+      where: { email: globalKey },
+      update: {},
+      create: { email: globalKey, credits: 10000 },
+    });
+    const reservation = await prisma.credit.updateMany({
+      where: { email: globalKey, credits: { gte: 1 } },
+      data: { credits: { decrement: 1 } },
+    });
+    if (reservation.count === 0) {
+      return NextResponse.json(
+        { message: "Insufficient global credits" },
+        { status: 402 },
+      );
+    }
+    creditReserved = true;
+
     logMagicCall(req, "image_edit", "started", {
       hasPrompt: Boolean(prompt?.trim()),
       imageBytes: image.size,
@@ -133,6 +153,11 @@ export async function POST(req: Request) {
       body: forward,
     });
     if (!res.ok) {
+      await prisma.credit.update({
+        where: { email: globalKey },
+        data: { credits: { increment: 1 } },
+      });
+      creditReserved = false;
       logMagicCall(req, "image_edit", "completed", {
         ok: false,
         upstreamStatus: res.status,
@@ -159,6 +184,16 @@ export async function POST(req: Request) {
       },
     });
   } catch (err: unknown) {
+    if (creditReserved) {
+      await prisma.credit
+        .update({
+          where: { email: "global" },
+          data: { credits: { increment: 1 } },
+        })
+        .catch((refundError: unknown) => {
+          console.error("Failed to refund image-edit credit", refundError);
+        });
+    }
     const message = err instanceof Error ? err.message : "unknown";
     return new NextResponse(`Server error: ${message}`, { status: 500 });
   }

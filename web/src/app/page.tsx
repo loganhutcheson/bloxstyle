@@ -47,16 +47,19 @@ export default function Home() {
   // Load credits from API
   useEffect(() => {
     let isMounted = true;
-    (async () => {
+    const loadCredits = async () => {
       try {
         const res = await fetch("/api/credits", { cache: "no-store" });
         if (!res.ok) return;
         const data = await res.json();
         if (isMounted && typeof data?.credits === "number") setCredits(data.credits);
       } catch {}
-    })();
+    };
+    void loadCredits();
+    window.addEventListener("credits-changed", loadCredits);
     return () => {
       isMounted = false;
+      window.removeEventListener("credits-changed", loadCredits);
     };
   }, []);
 
