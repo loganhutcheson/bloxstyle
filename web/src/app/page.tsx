@@ -19,7 +19,7 @@ export default function Home() {
         await fetch("/api/qwen_edit", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ warm: true }),
+          body: JSON.stringify({ warm: true, source: "homepage_prewarm" }),
           keepalive: true,
         });
       } catch {}

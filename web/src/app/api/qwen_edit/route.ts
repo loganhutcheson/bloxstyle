@@ -4,6 +4,26 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 export const maxDuration = 300;
 
+type MagicCallKind = "warm" | "image_edit";
+
+function logMagicCall(
+  req: Request,
+  kind: MagicCallKind,
+  phase: "started" | "completed",
+  details: Record<string, unknown> = {},
+) {
+  console.info(
+    JSON.stringify({
+      event: "magic_endpoint_call",
+      kind,
+      phase,
+      userAgent: req.headers.get("user-agent") || null,
+      referer: req.headers.get("referer") || null,
+      ...details,
+    }),
+  );
+}
+
 function getMagicUrl() {
   return (
     process.env.MAGIC_EDIT_URL ||
@@ -46,6 +66,7 @@ function formatQwenError(prefix: string, text: string, status: number) {
 }
 
 export async function POST(req: Request) {
+  const startedAt = Date.now();
   try {
     const qwenUrl = getMagicUrl();
     if (!qwenUrl) {
@@ -54,16 +75,34 @@ export async function POST(req: Request) {
 
     const contentType = req.headers.get("content-type") || "";
     if (contentType.includes("application/json")) {
-      const body = (await req.json().catch(() => null)) as { warm?: boolean } | null;
+      const body = (await req.json().catch(() => null)) as {
+        warm?: boolean;
+        source?: string;
+      } | null;
       if (body?.warm === true) {
+        logMagicCall(req, "warm", "started", {
+          source: body.source || "unknown",
+        });
         const res = await warmQwen(qwenUrl);
         if (!res.ok) {
+          logMagicCall(req, "warm", "completed", {
+            source: body.source || "unknown",
+            ok: false,
+            upstreamStatus: res.status,
+            durationMs: Date.now() - startedAt,
+          });
           const t = await res.text().catch(() => "");
           return new NextResponse(formatQwenError("Qwen warm error", t, res.status), {
             status: 502,
           });
         }
         const ct = res.headers.get("content-type") || "";
+        logMagicCall(req, "warm", "completed", {
+          source: body.source || "unknown",
+          ok: true,
+          upstreamStatus: res.status,
+          durationMs: Date.now() - startedAt,
+        });
         if (ct.includes("application/json")) {
           const payload = await res.json().catch(() => ({ ok: true }));
           return NextResponse.json({ ok: true, warmed: true, upstream: payload });
@@ -79,6 +118,11 @@ export async function POST(req: Request) {
       return new NextResponse("Missing image", { status: 400 });
     }
 
+    logMagicCall(req, "image_edit", "started", {
+      hasPrompt: Boolean(prompt?.trim()),
+      imageBytes: image.size,
+    });
+
     // Forward to upstream
     const forward = new FormData();
     forward.append("image", image, "input.png");
@@ -89,6 +133,11 @@ export async function POST(req: Request) {
       body: forward,
     });
     if (!res.ok) {
+      logMagicCall(req, "image_edit", "completed", {
+        ok: false,
+        upstreamStatus: res.status,
+        durationMs: Date.now() - startedAt,
+      });
       const t = await res.text().catch(() => "");
       return new NextResponse(formatQwenError("Qwen edit error", t, res.status), {
         status: 502,
@@ -96,6 +145,12 @@ export async function POST(req: Request) {
     }
     const buf = await res.arrayBuffer();
     const ct = res.headers.get("content-type") || "image/png";
+    logMagicCall(req, "image_edit", "completed", {
+      ok: true,
+      upstreamStatus: res.status,
+      durationMs: Date.now() - startedAt,
+      outputBytes: buf.byteLength,
+    });
     return new NextResponse(Buffer.from(buf), {
       status: 200,
       headers: {
