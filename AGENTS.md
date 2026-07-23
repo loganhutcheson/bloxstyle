@@ -1,5 +1,11 @@
 # Agent Handoff - 2026-06-28
 
+## Agent Journal
+
+Keep working notes under `agent-journal/tracks/`, with one Markdown file per ongoing workstream (for example, `agent-journal/tracks/modal-backend.md`). Append factual, chronological entries to the relevant track: what changed, what was verified, and what the next agent should know. Create a new clearly named track when no existing track fits.
+
+The entire `agent-journal/` directory is intentionally local and ignored by Git. Do not force-add journal entries. This `AGENTS.md` file is the tracked source of repository-wide agent instructions.
+
 ## 2026-06-29 Update
 
 - Deployed `get_started.py` once and confirmed it was the legacy Stable Diffusion LoRA Modal app, not Qwen.

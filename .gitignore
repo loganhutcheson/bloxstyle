@@ -28,3 +28,6 @@ datasets/
 .env.local
 
 .vscode/
+
+# Local agent work journals (AGENTS.md remains tracked)
+agent-journal/
