@@ -112,17 +112,6 @@ export default function Home() {
         <h1 className="text-5xl md:text-6xl font-extrabold tracking-tight bg-clip-text text-transparent bg-gradient-to-r from-purple-600 via-pink-500 to-orange-400">
           AI Roblox Clothing Editor
         </h1>
-        <p className="mt-4 text-base md:text-lg text-black/70 dark:text-white/70 max-w-2xl mx-auto">
-          Generate and apply 2D shirt and pants textures. Edit with an in-view magic prompt and see changes instantly.
-        </p>
-        <div className="mt-6 flex items-center justify-center gap-3">
-          <a href="#editor" className="rounded-md bg-purple-600 hover:bg-purple-700 text-white px-5 py-3 text-base">
-            Start designing
-          </a>
-          <a href="#examples" className="rounded-md border border-black/10 dark:border-white/10 px-5 py-3 text-base hover:bg-black/5 dark:hover:bg-white/10">
-            See examples
-          </a>
-        </div>
       </div>
 
       <div id="editor" className="w-full max-w-7xl mx-auto px-2">
@@ -139,6 +128,10 @@ export default function Home() {
 
       {/* bottom spacer for scroll buffer (reduced 50%) */}
       <div aria-hidden className="h-20 sm:h-28 lg:h-40" />
+
+      <p className="w-full max-w-2xl mx-auto px-2 pb-2 text-center text-base md:text-lg text-black/70 dark:text-white/70">
+        Generate and apply 2D shirt and pants textures. Edit with an in-view magic prompt and see changes instantly.
+      </p>
 
       {/* Examples banner removed per request */}
     </div>
