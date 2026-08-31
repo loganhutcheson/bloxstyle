@@ -1,5 +1,29 @@
 This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
 
+## Local watch editor
+
+The homepage combines a guided 585 × 559 Roblox classic-shirt canvas with a live R6 avatar preview. The colored template guide is display-only; generated and exported textures contain only the underlying shirt and committed watch.
+
+Start the local FLUX.2 Klein renderer in one terminal:
+
+```bash
+cd ../modal/flux2-klein
+source .venv/bin/activate
+uvicorn local_server:app --host 127.0.0.1 --port 8000
+```
+
+Then start the web app in a second terminal:
+
+```bash
+cd web
+npm run dev
+```
+
+The Next.js app has one model endpoint: `POST /api/watch_render`. It only contacts the renderer after
+the user clicks **Generate Watch**; there is no warm-up or automatic model load. The proxy defaults
+to the deployed Modal renderer. Set `WATCH_RENDER_URL=http://127.0.0.1:8000/watch-render` only when
+you intentionally want the local backend.
+
 ## Getting Started
 
 Create a `.env.local` with the following variables:

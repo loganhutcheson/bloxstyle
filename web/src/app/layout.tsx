@@ -1,9 +1,6 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
-import Providers from "./Providers";
-import HeaderUserMenu from "@/components/HeaderUserMenu";
-// removed unused Analytics import
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -16,8 +13,8 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Roblox AI Clothing Generator – 2D Roblox Shirt Maker",
-  description: "Generate 2D Roblox shirt designs instantly with our AI clothing generator.",
+  title: "Accessory Mode – Roblox Clothing",
+  description: "Design a watch on a Roblox classic shirt texture and preview it in 3D.",
   icons: {
     icon: [
       { url: "/shirt_logo.jpg", type: "image/jpeg" },
@@ -35,20 +32,7 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en">
-      <body
-        className={`${geistSans.variable} ${geistMono.variable} antialiased`}
-      >
-        <Providers>
-          <div className="min-h-screen w-full flex flex-col">
-            <header className="w-full flex items-center justify-end p-4">
-              <HeaderUserMenu />
-            </header>
-            <main className="flex-1 w-full">
-              {children}
-            </main>
-          </div>
-        </Providers>
-      </body>
+      <body className={`${geistSans.variable} ${geistMono.variable} antialiased`}>{children}</body>
     </html>
   );
 }

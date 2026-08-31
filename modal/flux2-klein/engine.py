@@ -10,6 +10,12 @@ from PIL import Image
 
 MODEL_ID = os.getenv("FLUX_MODEL_ID", "black-forest-labs/FLUX.2-klein-4B")
 DEFAULT_PROMPT = "Preserve the clothing template layout and edit only what is requested."
+WATCH_PROMPT = (
+    "Refine only the already-drawn watch into a clean 2D Roblox clothing-texture illustration "
+    "of a silver analog wristwatch. Preserve the exact circle, complete strap, orientation, size, "
+    "and background. Add a readable bezel, simple hands, and restrained cartoon shading. "
+    "Do not add text, extra objects, arms, people, or scenery."
+)
 
 
 @dataclass(frozen=True)
@@ -88,3 +94,34 @@ class FluxEditor:
         output = io.BytesIO()
         result.save(output, format="PNG")
         return output.getvalue()
+
+    def render_watch(self, image_bytes: bytes, mask_bytes: bytes) -> bytes:
+        source, mask = validate_watch_inputs(image_bytes, mask_bytes)
+        generated_bytes = self.edit(image_bytes, WATCH_PROMPT, seed=1)
+        generated = Image.open(io.BytesIO(generated_bytes)).convert("RGB")
+        if generated.size != source.size:
+            generated = generated.resize(source.size, Image.Resampling.LANCZOS)
+        return composite_watch_result(source, generated, mask)
+
+
+def validate_watch_inputs(image_bytes: bytes, mask_bytes: bytes) -> tuple[Image.Image, Image.Image]:
+    source = Image.open(io.BytesIO(image_bytes)).convert("RGB")
+    mask = Image.open(io.BytesIO(mask_bytes)).convert("L")
+    if source.size != (512, 512) or mask.size != source.size:
+        raise ValueError("Watch image and mask must both be 512 x 512")
+
+    extrema = mask.getextrema()
+    if extrema == (0, 0):
+        raise ValueError("Watch mask is empty")
+    histogram = mask.histogram()
+    non_black = sum(histogram[1:])
+    if non_black > source.width * source.height * 0.6:
+        raise ValueError("Watch mask covers too much of the crop")
+    return source, mask
+
+
+def composite_watch_result(source: Image.Image, generated: Image.Image, mask: Image.Image) -> bytes:
+    safe_result = Image.composite(generated.convert("RGB"), source.convert("RGB"), mask.convert("L"))
+    output = io.BytesIO()
+    safe_result.save(output, format="PNG")
+    return output.getvalue()

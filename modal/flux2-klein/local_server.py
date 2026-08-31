@@ -50,3 +50,29 @@ def edit_image(
     except Exception as exc:
         raise HTTPException(status_code=500, detail=f"Generation failed: {exc}") from exc
     return Response(result, media_type="image/png", headers={"Cache-Control": "no-store"})
+
+
+@app.post("/watch-render")
+def render_watch(
+    image: UploadFile = File(...),
+    mask: UploadFile = File(...),
+) -> Response:
+    if editor is None:
+        raise HTTPException(status_code=503, detail="Model is not loaded")
+    if image.content_type != "image/png" or mask.content_type != "image/png":
+        raise HTTPException(status_code=415, detail="Watch image and mask must be PNG files")
+
+    image_bytes = image.file.read()
+    mask_bytes = mask.file.read()
+    if not image_bytes or not mask_bytes:
+        raise HTTPException(status_code=400, detail="Watch image and mask cannot be empty")
+    if len(image_bytes) > 20 * 1024 * 1024 or len(mask_bytes) > 5 * 1024 * 1024:
+        raise HTTPException(status_code=413, detail="Watch image or mask is too large")
+
+    try:
+        result = editor.render_watch(image_bytes=image_bytes, mask_bytes=mask_bytes)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=f"Watch generation failed: {exc}") from exc
+    return Response(result, media_type="image/png", headers={"Cache-Control": "no-store"})
